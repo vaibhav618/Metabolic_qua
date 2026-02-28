@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>265394397027-q09d7omqjipo5864asrgii14sjcbtb2e.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.265394397027-q09d7omqjipo5864asrgii14sjcbtb2e</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>265394397027-1eqdk3c9uk8ffo1v6jeso8gorj0s1qjp.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCk_3I5ItvtmjfpSO2y2ps2d6cKdi_TPvk</string>
+	<key>GCM_SENDER_ID</key>
+	<string>265394397027</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.humorstech.dietitian</string>
+	<key>PROJECT_ID</key>
+	<string>respyrdietician</string>
+	<key>STORAGE_BUCKET</key>
+	<string>respyrdietician.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:265394397027:ios:fa1e06b06c75caf9233d56</string>
+</dict>
+</plist>

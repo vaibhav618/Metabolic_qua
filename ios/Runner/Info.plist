@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+	<!-- ====================== Basic App Info ====================== -->
+
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+
+	<!-- App name shown under icon -->
+	<key>CFBundleDisplayName</key>
+	<string>Respyr-Metabolism</string>
+
+	<!-- Internal app name -->
+	<key>CFBundleName</key>
+	<string>Respyr-Metabolism</string>
+
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+
+	<key>CFBundleSignature</key>
+	<string>????</string>
+
+	<!-- Required: app icon reference -->
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
+
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
+	<!-- ====================== URL Schemes (Google Sign-In) ====================== -->
+
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- REVERSED_CLIENT_ID from GoogleService-Info.plist -->
+				<string>com.googleusercontent.apps.265394397027-q09d7omqjipo5864asrgii14sjcbtb2e</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- ====================== Permissions / Usage Descriptions ====================== -->
+
+	<!-- Bluetooth (BLE) -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>This app uses Bluetooth to scan and connect to your Respyr device.</string>
+
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>This app uses Bluetooth to communicate with your Respyr device.</string>
+
+	<!-- Camera -->
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to capture profile images and documents.</string>
+
+	<!-- Photos (read) -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo access to select and upload images.</string>
+
+	<!-- Photos (write/save) -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app needs permission to save images to your photo library.</string>
+
+	<!-- Microphone (ONLY if you actually record audio/video; otherwise you can delete this key) -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access for video/audio recording features.</string>
+
+	<!-- ====================== Background Modes ====================== -->
+
+	<key>UIBackgroundModes</key>
+	<array>
+		<!-- BLE background support (keep if you want scan/connect in background) -->
+		<string>bluetooth-central</string>
+
+		<!-- Push notification background delivery -->
+		<string>remote-notification</string>
+	</array>
+
+	<!-- ====================== Flutter / UI Defaults ====================== -->
+
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+</dict>
+</plist>

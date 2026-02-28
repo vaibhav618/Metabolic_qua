@@ -1,0 +1,164 @@
+{
+  "project_info": {
+    "project_number": "265394397027",
+    "project_id": "respyrdietician",
+    "storage_bucket": "respyrdietician.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:265394397027:android:19acd5f04c552c37233d56",
+        "android_client_info": {
+          "package_name": "com.humorstech.dietitian"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "265394397027-53kc2fk22nkvgm8oafgmknr6ln45rh3p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.dietitian",
+            "certificate_hash": "07b1a434cdf29d73097c72d7e0d1da680a416033"
+          }
+        },
+        {
+          "client_id": "265394397027-b1pk9ia4s910gbdh33lhmvc92apn5jse.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.dietitian",
+            "certificate_hash": "612a4b0883128f17416e3561470dc4a5c09d606f"
+          }
+        },
+        {
+          "client_id": "265394397027-c6dup9p01jf5li8790rvqvqgbnkuvagv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.dietitian",
+            "certificate_hash": "aaf3dc356cdc1c9a9b1253d6b728ed9f84b9edcf"
+          }
+        },
+        {
+          "client_id": "265394397027-gv6tk8fst93m37v3mfm53eo7mlgkf0cc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.dietitian",
+            "certificate_hash": "b4533f8907f564d00e38159c444499fe05213f66"
+          }
+        },
+        {
+          "client_id": "265394397027-l1scfbq33db2j3rotq86bsdfd4i85d73.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.dietitian",
+            "certificate_hash": "6f90816a91bc979893525ff01f940acc0f83576f"
+          }
+        },
+        {
+          "client_id": "265394397027-t5nhjobn5bm4f4d3k2dh13bpiepf4a80.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.dietitian",
+            "certificate_hash": "561375ce8db32298224693c7732573808ca31e9b"
+          }
+        },
+        {
+          "client_id": "265394397027-v7lpd6ede39mq73sgutoh916lkf0d1o6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.dietitian",
+            "certificate_hash": "890ffc293405e7e803dd27e4880aed1fc7967300"
+          }
+        },
+        {
+          "client_id": "265394397027-7n0ciru6mpihpg8hmvnq9m2nflklf538.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoyLbE5CohE0plFXv-Xmwbyr_fV-FUhgU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "265394397027-7n0ciru6mpihpg8hmvnq9m2nflklf538.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "265394397027-q09d7omqjipo5864asrgii14sjcbtb2e.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.humorstech.dietitian",
+                "app_store_id": "6757678639"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:265394397027:android:69f6d4934ab0a8c0233d56",
+        "android_client_info": {
+          "package_name": "com.humorstech.respyr.metabolism"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "265394397027-1eqdk3c9uk8ffo1v6jeso8gorj0s1qjp.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.respyr.metabolism",
+            "certificate_hash": "07b1a434cdf29d73097c72d7e0d1da680a416033"
+          }
+        },
+        {
+          "client_id": "265394397027-u347h6ou61tc98h2i2djs23p2dids9gt.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.respyr.metabolism",
+            "certificate_hash": "612a4b0883128f17416e3561470dc4a5c09d606f"
+          }
+        },
+        {
+          "client_id": "265394397027-uojq5m34t5r2n1scml843mqdehv22rg2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.humorstech.respyr.metabolism",
+            "certificate_hash": "6f90816a91bc979893525ff01f940acc0f83576f"
+          }
+        },
+        {
+          "client_id": "265394397027-7n0ciru6mpihpg8hmvnq9m2nflklf538.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoyLbE5CohE0plFXv-Xmwbyr_fV-FUhgU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "265394397027-7n0ciru6mpihpg8hmvnq9m2nflklf538.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "265394397027-q09d7omqjipo5864asrgii14sjcbtb2e.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.humorstech.dietitian",
+                "app_store_id": "6757678639"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
