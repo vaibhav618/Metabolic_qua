@@ -61,6 +61,10 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
   Timer? _postExitTimer;
   bool _exitSent = false;
 
+  // 🚨 ADDED: Track when the hold phase started to give a 1-second grace period
+  DateTime? _holdStartAt;
+  static const Duration _holdStartCheckingAfter = Duration(seconds: 1);
+
   PracticeFullTestCubit(this.repo, this.breathingSettings)
       : super(const PracticeFullTestState()) {
     _listen();
@@ -144,6 +148,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
             countdownPhase: FullTestPhase.inhaleCountdown,
             nextPhase: FullTestPhase.inhaling,
             from: 5,
+            resetBase: true, // 🚨 Capture a fresh baseline at test start
           );
           return;
         }
@@ -160,7 +165,8 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
           startCounter(
             countdownPhase: FullTestPhase.exhaleCountdown,
             nextPhase: FullTestPhase.exhaling,
-            from: 8, // 👈 CHANGED THIS FROM 5 TO 8
+            from: 8,
+            resetBase: false, // 🚨 KEEP the same baseline for the Hold phase!
           );
           return;
         }
@@ -168,9 +174,9 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
 
       // ---------------------------------------------------------
       // THE FIX: THE DATA DAM
-      // If we are currently counting down, completely IGNORE all data.
-      // This flushes the old baseline from the pipeline.
-      if (!_testStarted) return;
+      // If we are currently counting down (Inhale prep), ignore data.
+      // 🚨 EXCEPTION: We ALLOW data during 'exhaleCountdown' because that is our 8-second Hold Phase!
+      if (!_testStarted && state.phase != FullTestPhase.exhaleCountdown) return;
       // ---------------------------------------------------------
 
       final slashMatch = _slashNum.firstMatch(clean);
@@ -200,13 +206,39 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
         _processInhaleData(value);
       } else if (state.phase == FullTestPhase.exhaling) {
         _processExhaleData(value);
+      } else if (state.phase == FullTestPhase.exhaleCountdown) {
+        // 🚨 Target the hold phase!
+        _processHoldData(value);
       }
     });
   }
 
+  // 🚨 ADDED: Cloned directly from main test hold logic with grace periods
+  void _processHoldData(double value) {
+    final holdStart = _holdStartAt;
+    if (holdStart == null) return;
+
+    final elapsedHold = DateTime.now().difference(holdStart);
+
+    // Give them a 1.5 second grace period to let the ball drop back to 0
+    if (elapsedHold < const Duration(milliseconds: 1500)) return;
+
+    // Tolerance relaxed slightly to 2.5 to avoid false positives from natural sensor drift
+    if (value > (_base + 2.5)) {
+      _finishFail("Exhale detected during hold");
+      return;
+    }
+
+    if (value < (_base - 2.5)) {
+      _finishFail("Inhale detected during hold");
+      return;
+    }
+  }
+
+  // 🚨 REWRITTEN: Exact clone of standalone Inhale logic
   void _processInhaleData(double value) {
     if (value > _base + 1.5) {
-      _finishFail("Exhale detected instead of inhale.");
+      _finishFail("Exhale detected instead of inhale");
       return;
     }
 
@@ -215,13 +247,34 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       value,
       breathingSettings.inhale.threshold.toDouble(),
     );
-    final progress = signed < 0 ? (-signed) : 0.0;
-    _updateProgress(progress, signed, "Inhale dropped to 0.");
+
+    final inhaleProgress = signed < 0 ? (-signed) : 0.0;
+    final startedNow = inhaleProgress >= _armAt;
+
+    emit(state.copyWith(
+      progressSigned: signed,
+      progress: startedNow ? inhaleProgress : 0,
+    ));
+
+    if (!_armed && startedNow) _armed = true;
+
+    if (_armed &&
+        !_dropFailTriggered &&
+        inhaleProgress <= _dropToZeroThreshold) {
+      _dropFailTriggered = true;
+      _finishFail("Inhale dropped to 0");
+      return;
+    }
+
+    if (_armed) {
+      _applyBandRules(inhaleProgress);
+    }
   }
 
+  // 🚨 REWRITTEN: Exact clone of standalone Exhale logic
   void _processExhaleData(double value) {
     if (value < _base - 1.5) {
-      _finishFail("Inhale detected instead of exhale.");
+      _finishFail("Inhale detected instead of exhale");
       return;
     }
 
@@ -230,28 +283,27 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       value,
       breathingSettings.exhale.threshold.toDouble(),
     );
-    final progress = signed > 0 ? signed : 0.0;
-    _updateProgress(progress, signed, "Exhale dropped to 0.");
-  }
 
-  void _updateProgress(double progress, double signed, String dropReason) {
-    final startedNow = progress >= _armAt;
+    final exhaleProgress = signed > 0 ? signed : 0.0;
+    final startedNow = exhaleProgress >= _armAt;
 
     emit(state.copyWith(
       progressSigned: signed,
-      progress: startedNow ? progress : 0,
+      progress: startedNow ? exhaleProgress : 0,
     ));
 
     if (!_armed && startedNow) _armed = true;
 
-    if (_armed && !_dropFailTriggered && progress <= _dropToZeroThreshold) {
+    if (_armed &&
+        !_dropFailTriggered &&
+        exhaleProgress <= _dropToZeroThreshold) {
       _dropFailTriggered = true;
-      _finishFail(dropReason);
+      _finishFail("Exhale dropped to 0");
       return;
     }
 
     if (_armed) {
-      _applyBandRules(progress);
+      _applyBandRules(exhaleProgress);
     }
   }
 
@@ -300,12 +352,14 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     _secondTimer?.cancel();
 
     // Reset everything
-    _resetPhaseTracking();
+    _resetPhaseTracking(
+        resetBase: true); // 🚨 Wipe base completely on a fresh restart
     _batteryDiedDuringTest = false; // 🚨 Reset flag on retries
     _flowStopped = false;
     _waitingHandshakeAck = false;
     _testStarted = false;
     _exitSent = false;
+    _holdStartAt = null;
 
     // Ensure Cubit drops all stale data and waits for confirmation
     _waitingPercentAck = true;
@@ -345,12 +399,18 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     required FullTestPhase countdownPhase,
     required FullTestPhase nextPhase,
     int from = 5,
+    bool resetBase = false, // 🚨 Added to control the baseline
   }) {
     if (_disposed) return;
 
     // Crucial: Clear the base so we capture a fresh one when timer hits 0
-    _resetPhaseTracking();
+    _resetPhaseTracking(resetBase: resetBase);
     _testStarted = false;
+
+    // 🚨 Mark the exact time the hold phase starts
+    if (countdownPhase == FullTestPhase.exhaleCountdown) {
+      _holdStartAt = DateTime.now();
+    }
 
     final totalMillis = from * 1000;
     final endsAt = DateTime.now().millisecondsSinceEpoch + totalMillis;
@@ -427,7 +487,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     if (state.phase == FullTestPhase.inhaling) {
       d("Inhale Passed! Sending '2' (Hold).");
       if (repo.isConnected) repo.sendData("2");
-      _resetPhaseTracking();
+      _resetPhaseTracking(resetBase: false); // 🚨 Keep base for the hold phase!
       emit(state.copyWith(phase: FullTestPhase.transitioning));
     } else if (state.phase == FullTestPhase.exhaling) {
       d("Exhale Passed! Sending Exit sequence (/) and (%).");
@@ -436,7 +496,6 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
 
       _sendExitAndPercent(sendPercent: true);
 
-      // 🚨 NEW: If the battery died during the full test, pass the flag
       emit(state.copyWith(
         phase: FullTestPhase.success,
         failReason: _batteryDiedDuringTest ? "POST_TEST_LOW_BATTERY" : "",
@@ -488,14 +547,19 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     }
   }
 
-  void _resetPhaseTracking() {
+  // 🚨 Modified to let us keep the baseline between phases
+  void _resetPhaseTracking({bool resetBase = false}) {
     _armed = false;
     _everReachedBand = false;
     _needAccumulated = Duration.zero;
     _needLastTickAt = null;
     _dropFailTriggered = false;
-    _baseCaptured = false;
-    _base = 0;
+
+    if (resetBase) {
+      _baseCaptured = false;
+      _base = 0;
+    }
+
     _pauseNeedTicker();
     _outOfBandTimer?.cancel();
     emit(state.copyWith(progress: 0, progressSigned: 0, inBandSeconds: 0));
@@ -536,7 +600,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     _secondTimer?.cancel();
     _secondTimer = null;
 
-    _resetPhaseTracking();
+    _resetPhaseTracking(resetBase: true);
 
     if (repo.isConnected) {
       try {

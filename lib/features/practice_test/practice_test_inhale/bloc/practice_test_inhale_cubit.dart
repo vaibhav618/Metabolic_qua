@@ -179,6 +179,7 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
         d("pkt=$_packetCount raw=$inhaleValue base=$_base");
       }
 
+      // 🚨 UPDATED RULE: Relaxed to 1.5 to absorb natural sensor rebound when dropping the ball
       if (inhaleValue > _base + 1.5) {
         unawaited(_setCancelOrDisconnectFlag());
         _finishFail("Exhale detected instead of inhale");
@@ -255,8 +256,10 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
   void restartAfterFailWithPercent() {
     if (_disposed || _cancelled) return;
+    // 🚨 THE FIX: If disconnected, force the UI to navigate back to the practice menu
     if (!repo.isConnected) {
-      emit(state.copyWith(error: "Device not connected"));
+      d("Cannot restart. Device disconnected. Forcing exit.");
+      emit(state.copyWith(navigateBack: true));
       return;
     }
 

@@ -10,8 +10,11 @@ import 'package:respyr_dietitian/features/practice_test/practice_test_inhale/pre
 import 'package:respyr_dietitian/features/practice_test/practice_test_inhale/presentation/screens/practice_test_start_counter_screen.dart'
     show PracticeTestStartCounterScreen;
 
+import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/repository/bluetooth_repository.dart'; // 🚨 Needed for connection check
+
 import '../../../practice_test_home/bloc/practice_flow_bloc.dart';
 import '../../../practice_test_home/domain/enums/practice_test.dart';
+import 'package:respyr_dietitian/routes/app_routes.dart'; // 🚨 Needed for routing
 
 class PracticeTestInhaleScreen extends StatelessWidget {
   final PracticeTestInhaleParams practiceTestInhaleParams;
@@ -30,6 +33,7 @@ class PracticeTestInhaleScreen extends StatelessWidget {
       ),
       child: _PracticeTestInhaleView(
         settings: practiceTestInhaleParams.breathingSettings,
+        params: practiceTestInhaleParams, // 🚨 Pass params down
       ),
     );
   }
@@ -37,8 +41,12 @@ class PracticeTestInhaleScreen extends StatelessWidget {
 
 class _PracticeTestInhaleView extends StatelessWidget {
   final BreathingSettings settings;
+  final PracticeTestInhaleParams params; // 🚨 Accept params here
 
-  const _PracticeTestInhaleView({required this.settings});
+  const _PracticeTestInhaleView({
+    required this.settings,
+    required this.params,
+  });
 
   PreferredSizeWidget _buildAppBar({
     required BuildContext context,
@@ -121,6 +129,7 @@ class _PracticeTestInhaleView extends StatelessWidget {
                   ),
                   state: state,
                   settings: settings,
+                  params: params, // 🚨 Pass params to final view
                 ),
               ),
             ),
@@ -146,15 +155,49 @@ class _PracticeTestInhaleView extends StatelessWidget {
 class _BuildView extends StatelessWidget {
   final PracticeTestInhaleState state;
   final BreathingSettings settings;
+  final PracticeTestInhaleParams params; // 🚨 Accept params here
 
   const _BuildView({
     super.key,
     required this.state,
     required this.settings,
+    required this.params,
   });
 
   @override
   Widget build(BuildContext context) {
+    // 🚨 MOVED TO TOP: Failure/Disconnect logic now overrides the timer
+    if (state.inhaleFailed) {
+      final msg = state.inhaleFailReason.trim().isNotEmpty
+          ? state.inhaleFailReason.trim()
+          : "Test failed.";
+
+      return InhaleFailed(
+        text: msg,
+        onStartAgain: () {
+          // Check connection status directly from the repository
+          final isConnected = context.read<BluetoothRepository>().isConnected;
+
+          if (isConnected) {
+            // Proceed with normal retry
+            context
+                .read<PracticeTestInhaleCubit>()
+                .restartAfterFailWithPercent();
+          } else {
+            // Disconnected: Force navigation back to Practice Menu
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(
+                AppRoutes.practiceFlowShell,
+                extra: params.clientProfileModel,
+              );
+            }
+          }
+        },
+      );
+    }
+
     if (!state.startCounterFinished) {
       return PracticeTestStartCounterScreen(state: state);
     }
@@ -166,19 +209,6 @@ class _BuildView extends StatelessWidget {
       );
     }
 
-    if (state.inhaleFailed) {
-      final msg = state.inhaleFailReason.trim().isNotEmpty
-          ? state.inhaleFailReason.trim()
-          : "Test failed.";
-
-      return InhaleFailed(
-        text: msg,
-        onStartAgain: () {
-          context.read<PracticeTestInhaleCubit>().restartAfterFailWithPercent();
-        },
-      );
-    }
-
-    return SizedBox.shrink();
+    return const SizedBox.shrink();
   }
 }

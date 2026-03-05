@@ -1,7 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:respyr_dietitian/features/test_result/test_histoty/presentation/widget/score_progress.dart';
-import 'package:respyr_dietitian/features/test_result/test_histoty/presentation/widget/score_trend.dart';
+import 'package:respyr_dietitian/features/test_result/test_history/presentation/widget/score_progress.dart';
+import 'package:respyr_dietitian/features/test_result/test_history/presentation/widget/score_trend.dart';
 import '../../data/modal/score_point.dart';
 import 'package:google_fonts/google_fonts.dart' show GoogleFonts;
 
@@ -47,7 +47,6 @@ Widget scoreTrendCard({
     spots.add(FlSpot(i.toDouble(), series[i].value));
   }
 
-
   return Column(
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
@@ -62,11 +61,10 @@ Widget scoreTrendCard({
         ),
       ),
       const SizedBox(height: 20.5),
-      if(series.length  > 2)
-      scoreDifference(
-          scoreCurrent:  series.last.value.toDouble(),
-          scorePrevious: series[series.length - 2].value.toDouble()
-      ),
+      if (series.length > 2)
+        scoreDifference(
+            scoreCurrent: series.last.value.toDouble(),
+            scorePrevious: series[series.length - 2].value.toDouble()),
       const SizedBox(height: 20.5),
       scoreTrendChart(series: series),
     ],

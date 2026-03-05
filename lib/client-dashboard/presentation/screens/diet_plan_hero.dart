@@ -28,7 +28,10 @@ class DietPlanHero extends StatelessWidget {
     super.key,
     required this.clientProfileModel,
     required this.dietitianDetailModel,
-    required this.todayData, required this.activeData, required this.completedData, required this.canceledData,
+    required this.todayData,
+    required this.activeData,
+    required this.completedData,
+    required this.canceledData,
   });
 
   @override
@@ -36,7 +39,6 @@ class DietPlanHero extends StatelessWidget {
     final dayKey = (todayData['dayKey'] ?? '').toString();
     final totals = (todayData['totals'] ?? {}) as Map<String, dynamic>;
     final meals = (todayData['meals'] ?? const []) as List;
-
 
     Map<String, dynamic>? picked = CurrentMeal().pickCurrentMeal(meals);
     final time = (picked?['time'] ?? '').toString();
@@ -54,10 +56,15 @@ class DietPlanHero extends StatelessWidget {
             child: DashboardAppbar(
               clientProfileModel: clientProfileModel,
               isDefaultColor: false,
-              dietitianDetailModel: dietitianDetailModel, activeData: activeData, completedData: [], canceledData: [],
+              dietitianDetailModel: dietitianDetailModel,
+              activeData: activeData,
+              completedData: [],
+              canceledData: [],
             ),
           ),
-          SizedBox(height: 80,),
+          SizedBox(
+            height: 80,
+          ),
           SizedBox(
             width: double.infinity,
             child: Center(
@@ -125,8 +132,9 @@ class DietPlanHero extends StatelessWidget {
               return DietPlanWidgets().dietFoodItemCard(
                 index: index + 1,
                 foodName: items[index]['name'] ?? '',
-                foodPortion:  items[index]['portion'],
-                foodCalories:"${items[index]['calories_kcal']} Kcal" , );
+                foodPortion: items[index]['portion'],
+                foodCalories: "${items[index]['calories_kcal']} Kcal",
+              );
             },
           ),
           Padding(
@@ -204,25 +212,27 @@ class DietPlanHero extends StatelessWidget {
                               ),
                             ],
                           ),
-                          Container(height: 0.5, width: double.infinity, color: Colors.white),
+                          Container(
+                              height: 0.5,
+                              width: double.infinity,
+                              color: Colors.white),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
                               TextButton(
                                 onPressed: () {
-
-
-
                                   Navigator.push(
                                     context,
-                                    MaterialPageRoute(builder: (context) => DietPlanScreen(
-                                      dieticianId: dietitianDetailModel.dietitianId,
-                                      profileId: clientProfileModel.profileId, dietPlanStrategyModel: activeData.first,
-                                    
-                                    )),
+                                    MaterialPageRoute(
+                                        builder: (context) => DietPlanScreen(
+                                              dieticianId: dietitianDetailModel
+                                                  .dietitianId,
+                                              profileId:
+                                                  clientProfileModel.profileId,
+                                              dietPlanStrategyModel:
+                                                  activeData.first,
+                                            )),
                                   );
-
-
                                 },
                                 style: ElevatedButton.styleFrom(
                                   elevation: 0,
@@ -232,7 +242,10 @@ class DietPlanHero extends StatelessWidget {
                                 child: Row(
                                   spacing: 5,
                                   children: [
-                                    SvgPicture.asset("assets/images/icons/ic_diet_plan.svg", width: 20,),
+                                    SvgPicture.asset(
+                                      "assets/images/icons/ic_diet_plan.svg",
+                                      width: 20,
+                                    ),
                                     Text(
                                       "View full plan",
                                       style: GoogleFonts.poppins(
@@ -243,18 +256,22 @@ class DietPlanHero extends StatelessWidget {
                                         letterSpacing: -0.24,
                                       ),
                                     ),
-                                    Icon(Icons.keyboard_arrow_right_outlined, color: Colors.white,size: 15,)
+                                    Icon(
+                                      Icons.keyboard_arrow_right_outlined,
+                                      color: Colors.white,
+                                      size: 15,
+                                    )
                                   ],
                                 ),
                               ),
                               TextButton(
                                 onPressed: () {
-
                                   Navigator.of(context).push(
                                     MaterialPageRoute(
                                       builder: (_) => FoodLogByDayScreen(
                                         clientProfileModel: clientProfileModel,
-                                        dietitianModel: dietitianDetailModel, dietPlanStrategyModel: activeData.first,
+                                        dietitianModel: dietitianDetailModel,
+                                        dietPlanStrategyModel: activeData.first,
                                       ),
                                     ),
                                   );
@@ -267,7 +284,10 @@ class DietPlanHero extends StatelessWidget {
                                 child: Row(
                                   spacing: 5,
                                   children: [
-                                    SvgPicture.asset("assets/images/icons/ic_food.svg", width: 20,),
+                                    SvgPicture.asset(
+                                      "assets/images/icons/ic_food.svg",
+                                      width: 20,
+                                    ),
                                     Text(
                                       "View logged meals",
                                       style: GoogleFonts.poppins(
@@ -278,7 +298,11 @@ class DietPlanHero extends StatelessWidget {
                                         letterSpacing: -0.24,
                                       ),
                                     ),
-                                    Icon(Icons.keyboard_arrow_right_outlined, color: Colors.white,size: 15,)
+                                    Icon(
+                                      Icons.keyboard_arrow_right_outlined,
+                                      color: Colors.white,
+                                      size: 15,
+                                    )
                                   ],
                                 ),
                               )
@@ -296,7 +320,5 @@ class DietPlanHero extends StatelessWidget {
         ],
       ),
     );
-
   }
-
 }

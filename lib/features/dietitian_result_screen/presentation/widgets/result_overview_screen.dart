@@ -35,8 +35,6 @@ class ResultOverViewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
-
     return SliverToBoxAdapter(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,7 +200,7 @@ class ResultOverViewScreen extends StatelessWidget {
                       children: [
                         const TextSpan(
                           text:
-                          'Scores interpretations are based on the values recorded by Respyr device. Please refer to the reference ',
+                              'Scores interpretations are based on the values recorded by Respyr device. Please refer to the reference ',
                         ),
                         TextSpan(
                           text: 'link',

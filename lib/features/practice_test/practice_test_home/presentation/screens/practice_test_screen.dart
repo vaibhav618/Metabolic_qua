@@ -30,6 +30,8 @@ class PracticeTestScreen extends StatefulWidget {
 class _PracticeTestScreenState extends State<PracticeTestScreen> {
   bool _isSavingProgress = false;
   bool _isNavigatingAway = false; // 🚨 1. ADD THE SILENCER FLAG
+  bool _requireManualReconnect =
+      false; // 🚨 REQUIRES MANUAL RECONNECT AFTER DISCONNECT
 
   // 🚨 Catch-All Battery Trap Variables
   StreamSubscription<String>? _bleTrapSub;
@@ -101,6 +103,11 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   }
 
   void _goConnect(BuildContext context) {
+    // 🚨 Reset the manual flag because the user is properly initiating the connection
+    setState(() {
+      _requireManualReconnect = false;
+    });
+
     context.push(
       '${AppRoutes.practiceFlowShell}/${AppRoutes.startDeviceScreen}',
       extra: widget.clientProfileModel,
@@ -175,6 +182,18 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
         actions: [
           IconButton(
             onPressed: () {
+              // 🚨 Mute snackbars during navigation
+              _isNavigatingAway = true;
+
+              // Force disconnect to un-check the "Connect" step
+              final repo = context.read<BluetoothRepository>();
+              try {
+                if (repo.isConnected) {
+                  repo.sendData("&"); // Sleep the device
+                  repo.disconnect();
+                }
+              } catch (_) {}
+
               // SAFE POP: Check if there is history.
               if (context.canPop()) {
                 context.pop();
@@ -247,8 +266,20 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
                         if (_isNavigatingAway) return;
 
                         if (!state.isConnected) {
-                          _showSnack(context, "Device disconnected");
+                          if (!_requireManualReconnect) {
+                            _showSnack(context,
+                                "Device disconnected. Please reconnect.");
+                            // 🚨 Force a disconnect so it doesn't auto-reconnect in background and skip the flow
+                            try {
+                              context.read<BluetoothRepository>().disconnect();
+                            } catch (_) {}
+
+                            setState(() {
+                              _requireManualReconnect = true;
+                            });
+                          }
                         }
+
                         final err = state.bleError;
                         if (err != null && err.trim().isNotEmpty) {
                           _showSnack(context, err);
@@ -269,7 +300,14 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
                               itemBuilder: (context, index) {
                                 final step = _steps[index];
                                 final enabled = state.isEnabled(step);
-                                final completed = state.isCompleted(step);
+
+                                // FORCE connection status to map to completion dynamically
+                                // 🚨 Combine with manual reconnect flag so background connects don't fake completion
+                                bool completed = state.isCompleted(step);
+                                if (step == PracticeTestSteps.connect) {
+                                  completed = state.isConnected &&
+                                      !_requireManualReconnect;
+                                }
 
                                 return PracticeMenu(
                                   enabled: enabled,
@@ -284,7 +322,9 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
                                     }
 
                                     // Check connection for all breath tests
-                                    if (!state.isConnected) {
+                                    // 🚨 Reject if disconnected OR if they are required to do manual flow
+                                    if (!state.isConnected ||
+                                        _requireManualReconnect) {
                                       _showSnack(
                                           context, "Connect the device first");
                                       return;

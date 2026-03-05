@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../../core/size/get_height.dart';
 
-
 Future<void> showTimeOutDialog({
   required BuildContext context,
   required VoidCallback onButtonPressed,
@@ -43,7 +42,7 @@ Future<void> showTimeOutDialog({
             ),
             SizedBox(height: rh(context: context, px: 20)),
             Text(
-              "Oops! Something went wrong, please try ahain",
+              "Oops! Something went wrong, please try again",
               textAlign: TextAlign.center,
               style: GoogleFonts.mulish(
                 color: const Color(0xFF252525),

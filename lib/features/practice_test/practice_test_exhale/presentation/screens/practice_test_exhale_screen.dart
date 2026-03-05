@@ -3,14 +3,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/model/breath_setting_model.dart';
-import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/widgets/exhale_failed.dart';
-import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/widgets/inhale_failed.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/bloc/practice_test_exhale_cubit.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/bloc/practice_test_exhale_state.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/presentation/data/practice_test_exhale_params.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/presentation/screens/practice_test_exhale_progress_screen.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/presentation/screens/practice_test_exhale_start_counter_screen.dart';
 import 'package:respyr_dietitian/routes/app_routes.dart';
+
+import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/repository/bluetooth_repository.dart'; // 🚨 Added for connection check
 
 import '../../../../../core/size/get_height.dart';
 import '../../../practice_test_home/bloc/practice_flow_bloc.dart';
@@ -47,9 +47,9 @@ class _PracticeTestExhaleView extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocListener<PracticeTestExhaleCubit, PracticeTestExhaleState>(
       listener: (context, state) {
-        if (!state.isConnected) {
-          _showSnack(context, "Device disconnected");
-        }
+        // if (!state.isConnected) {
+        //   _showSnack(context, "Device disconnected");
+        // }
 
         if (state.exhaleSuccess) {
           // Marks the Exhale step as completed in the main flow
@@ -94,6 +94,7 @@ class _PracticeTestExhaleView extends StatelessWidget {
                 child: _BuildView(
                   state: state,
                   settings: params.breathingSettings,
+                  params: params, // 🚨 Pass params down to BuildView
                 ),
               ),
             ),
@@ -113,11 +114,44 @@ class _PracticeTestExhaleView extends StatelessWidget {
 class _BuildView extends StatelessWidget {
   final PracticeTestExhaleState state;
   final BreathingSettings settings;
+  final PracticeTestExhaleParams params; // 🚨 Accept params
 
-  const _BuildView({required this.state, required this.settings});
+  const _BuildView({
+    required this.state,
+    required this.settings,
+    required this.params,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // 🚨 MOVED TO TOP: Failure/Disconnect logic now overrides the timer
+    if (state.exhaleFailed) {
+      return ExhaleFailed(
+        state: state,
+        onStartAgain: () {
+          // Check connection status directly from the repository
+          final isConnected = context.read<BluetoothRepository>().isConnected;
+
+          if (isConnected) {
+            // Proceed with normal retry
+            context
+                .read<PracticeTestExhaleCubit>()
+                .restartAfterFailWithPercent();
+          } else {
+            // Disconnected: Force navigation back to Practice Menu
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(
+                AppRoutes.practiceFlowShell,
+                extra: params.clientProfileModel,
+              );
+            }
+          }
+        },
+      );
+    }
+
     if (!state.startCounterFinished) {
       return PracticeTestExhaleStartCounterScreen(state: state);
     }
@@ -129,15 +163,7 @@ class _BuildView extends StatelessWidget {
       );
     }
 
-    return ExhaleFailed(
-      // text: state.exhaleFailReason.isEmpty
-      //     ? "Test failed."
-      //     : state.exhaleFailReason,
-      onStartAgain: () {
-        context.read<PracticeTestExhaleCubit>().restartAfterFailWithPercent();
-      },
-      state: state,
-    );
+    return const SizedBox.shrink();
   }
 }
 
@@ -156,7 +182,6 @@ class ExhaleFailed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ FIX: Prefer exhaleFailReason (your cubit sets this), fallback to error.
     final raw = ((state.exhaleFailReason ?? "").trim().isNotEmpty
             ? state.exhaleFailReason!
             : (state.error ?? ""))
@@ -164,18 +189,60 @@ class ExhaleFailed extends StatelessWidget {
 
     final e = raw.toLowerCase();
 
-    // ✅ Match cubit reasons
-    final isInhale = _contains(e, "inhale"); // matches "Inhale detected..."
+    final isInhale = _contains(e, "inhale");
     final isDropped = _contains(e, "dropped") ||
         _contains(e, "drop") ||
         _contains(e, "out of range") ||
-        _contains(e, "range"); // matches "Out of range for 2 seconds"
+        _contains(e, "range");
     final timeout = _contains(e, "too long") ||
         _contains(e, "timeout") ||
         _contains(e, "no response") ||
         _contains(e, "no exhale detected within 30 seconds");
 
+    // 🚨 NEW: Detect disconnects
+    final isDisconnected = _contains(e, "disconnect");
+
     debugPrint("exhale error : $e");
+
+    // 🚨 ADDED: Dedicated Disconnected Screen
+    if (isDisconnected) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Connection Lost",
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF252525),
+                fontSize: rh(context: context, px: 25),
+                fontWeight: FontWeight.w600,
+                height: rh(context: context, px: 1.29),
+                letterSpacing: rh(context: context, px: -1),
+              ),
+            ),
+            SizedBox(
+              height: rh(context: context, px: 25),
+            ),
+            Text(
+              raw.isEmpty ? "Device disconnected. Please reconnect." : raw,
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF535359),
+                fontSize: rh(context: context, px: 15),
+                fontWeight: FontWeight.w400,
+                height: rh(context: context, px: 1.30),
+                letterSpacing: rh(context: context, px: -0.30),
+              ),
+            ),
+            const Expanded(child: SizedBox()),
+            _buildButton(context, isDisconnected: true), // Will show "Go Back"
+            SizedBox(
+              height: rh(context: context, px: 20),
+            ),
+          ],
+        ),
+      );
+    }
 
     if (isInhale) {
       return Padding(
@@ -199,27 +266,7 @@ class ExhaleFailed extends StatelessWidget {
                 "assets/images/device_connection/img_inhale_exhale_screen.png",
               ),
             ),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                  onPressed: () {
-                    onStartAgain();
-                  },
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF308BF9),
-                      padding: EdgeInsetsGeometry.symmetric(
-                          vertical: rh(context: context, px: 16)),
-                      elevation: 0),
-                  child: Text(
-                    "Start Again",
-                    style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: rh(context: context, px: 15),
-                        fontWeight: FontWeight.w700,
-                        height: rh(context: context, px: 1.0),
-                        letterSpacing: rh(context: context, px: 0.30)),
-                  )),
-            ),
+            _buildButton(context, isDisconnected: false),
             SizedBox(
               height: rh(context: context, px: 20),
             ),
@@ -255,27 +302,7 @@ class ExhaleFailed extends StatelessWidget {
               ),
             ),
             Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                  onPressed: () {
-                    onStartAgain();
-                  },
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF308BF9),
-                      padding: EdgeInsetsGeometry.symmetric(
-                          vertical: rh(context: context, px: 16)),
-                      elevation: 0),
-                  child: Text(
-                    "Start Again",
-                    style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: rh(context: context, px: 15),
-                        fontWeight: FontWeight.w700,
-                        height: rh(context: context, px: 1.0),
-                        letterSpacing: rh(context: context, px: 0.30)),
-                  )),
-            ),
+            _buildButton(context, isDisconnected: false),
             SizedBox(
               height: rh(context: context, px: 20),
             ),
@@ -306,27 +333,7 @@ class ExhaleFailed extends StatelessWidget {
                 "assets/images/device_connection/img_exhale_timeout.png",
               ),
             ),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                  onPressed: () {
-                    onStartAgain();
-                  },
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF308BF9),
-                      padding: EdgeInsetsGeometry.symmetric(
-                          vertical: rh(context: context, px: 16)),
-                      elevation: 0),
-                  child: Text(
-                    "Start Again",
-                    style: GoogleFonts.poppins(
-                        color: Colors.white,
-                        fontSize: rh(context: context, px: 15),
-                        fontWeight: FontWeight.w700,
-                        height: rh(context: context, px: 1.0),
-                        letterSpacing: rh(context: context, px: 0.30)),
-                  )),
-            ),
+            _buildButton(context, isDisconnected: false),
             SizedBox(
               height: rh(context: context, px: 20),
             ),
@@ -335,6 +342,66 @@ class ExhaleFailed extends StatelessWidget {
       );
     }
 
-    return SizedBox.shrink();
+    // 🚨 ADDED: Generic fallback so it never returns a blank white screen
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Something went wrong.",
+            style: GoogleFonts.poppins(
+              color: const Color(0xFF252525),
+              fontSize: rh(context: context, px: 25),
+              fontWeight: FontWeight.w600,
+              height: rh(context: context, px: 1.29),
+              letterSpacing: rh(context: context, px: -1),
+            ),
+          ),
+          SizedBox(
+            height: rh(context: context, px: 25),
+          ),
+          Text(
+            raw.isEmpty ? "Don’t worry—let’s give it another try." : raw,
+            style: GoogleFonts.poppins(
+              color: const Color(0xFF535359),
+              fontSize: rh(context: context, px: 15),
+              fontWeight: FontWeight.w400,
+              height: rh(context: context, px: 1.30),
+              letterSpacing: rh(context: context, px: -0.30),
+            ),
+          ),
+          SizedBox(height: rh(context: context, px: 37)),
+          const Expanded(child: SizedBox()),
+          _buildButton(context, isDisconnected: false),
+          SizedBox(
+            height: rh(context: context, px: 20),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🚨 Helper widget to keep code clean and switch text if disconnected
+  Widget _buildButton(BuildContext context, {required bool isDisconnected}) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+          onPressed: onStartAgain,
+          style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF308BF9),
+              padding: EdgeInsetsGeometry.symmetric(
+                  vertical: rh(context: context, px: 16)),
+              elevation: 0),
+          child: Text(
+            isDisconnected ? "Go Back" : "Start Again",
+            style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: rh(context: context, px: 15),
+                fontWeight: FontWeight.w700,
+                height: rh(context: context, px: 1.0),
+                letterSpacing: rh(context: context, px: 0.30)),
+          )),
+    );
   }
 }

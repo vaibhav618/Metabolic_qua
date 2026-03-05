@@ -326,6 +326,8 @@ class _QuaDashboardBody extends StatelessWidget {
                   ),
                   _SwipeActionOverlay(
                     clientProfile: widgetRef.clientProfile,
+                    selectedDate:
+                        stateful._selectedDate, // 🚨 PASSED SELECTED DATE
                     onSwiped: (testState) =>
                         stateful._handleStartTest(testState),
                   ),
@@ -432,45 +434,6 @@ class _ScrollableContent extends StatelessWidget {
             Padding(
               padding: EdgeInsetsGeometry.directional(top: 20),
             ),
-            // SizedBox(
-            //   height: 45, // Much shorter than the previous 61px
-            //   child: OutlinedButton.icon(
-            //     onPressed: () {
-            //       context.push(
-            //         AppRoutes.practiceFlowShell,
-            //         extra: clientProfile,
-            //       );
-            //     },
-            //     // Adding a small icon makes it look much more professional
-            //     icon: const Icon(
-            //       Icons.play_circle_outline,
-            //       color: Color(0xFF308BF9),
-            //       size: 20,
-            //     ),
-            //     style: OutlinedButton.styleFrom(
-            //       elevation: 0,
-            //       padding: const EdgeInsets.symmetric(
-            //           horizontal: 20), // Keeps it compact
-            //       side: const BorderSide(
-            //         color: Color(0xFF308BF9), // Blue border
-            //         width: 1.5,
-            //       ),
-            //       shape: RoundedRectangleBorder(
-            //         borderRadius: BorderRadius.circular(30), // Pill shape
-            //       ),
-            //     ),
-            //     label: Text(
-            //       "Try Practice Test",
-            //       style: GoogleFonts.poppins(
-            //         color: const Color(
-            //             0xFF308BF9), // Blue text to match the border
-            //         fontSize: 14, // Slightly smaller text
-            //         fontWeight:
-            //             FontWeight.w600, // Semi-bold instead of heavy bold
-            //       ),
-            //     ),
-            //   ),
-            // ),
             Visibility(
               visible: false,
               child: ElevatedButton(
@@ -748,10 +711,12 @@ class _NoDataPrompt extends StatelessWidget {
 
 class _SwipeActionOverlay extends StatelessWidget {
   final ClientProfileModel clientProfile;
+  final DateTime selectedDate; // 🚨 ADDED
   final void Function(TestDataState testState) onSwiped;
 
   const _SwipeActionOverlay({
     required this.clientProfile,
+    required this.selectedDate, // 🚨 ADDED
     required this.onSwiped,
   });
 
@@ -762,10 +727,13 @@ class _SwipeActionOverlay extends StatelessWidget {
       left: 0,
       right: 0,
       child: BlocBuilder<TodayTestDataBloc, TestDataState>(
-        buildWhen: (prev, curr) => prev.result != curr.result,
+        // 🚨 Removed buildWhen so the UI reacts immediately to date changes
         builder: (context, testState) {
-          // final dietitianId = clientProfile.dietitianId?.trim().toLowerCase();
-          if (testState.result != null) {
+          // 🚨 ADDED: Check if the currently selected date is today
+          final isToday = DateUtils.isSameDay(selectedDate, DateTime.now());
+
+          // 🚨 HIDE IF: It is NOT today, OR a test has already been taken
+          if (!isToday || testState.result != null) {
             return const SizedBox.shrink();
           }
 

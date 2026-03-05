@@ -13,18 +13,65 @@ class InhaleFailed extends StatelessWidget {
     required this.onStartAgain,
   });
 
-  bool _contains(String t, String match) {
-    return t.toLowerCase().contains(match.toLowerCase());
+  bool _isExhaleCase(String t) {
+    final s = t.toLowerCase();
+    return s.contains("exhale");
+  }
+
+  bool _isDroppedCase(String t) {
+    return t.trim() == "Inhale dropped to 0";
+  }
+
+  // 🚨 ADDED: Check for disconnect
+  bool _isDisconnectedCase(String t) {
+    return t.toLowerCase().contains("disconnect");
   }
 
   @override
   Widget build(BuildContext context) {
-    final isExhale = _contains(text, "exhale");
-    final isDropped = _contains(text, "dropped") || _contains(text, "stopped");
-    // Add timeout catch for "Out of range for 2 seconds" or disconnected
-    final isTimeout = _contains(text, "out of range") ||
-        _contains(text, "timeout") ||
-        _contains(text, "no response");
+    final isExhale = _isExhaleCase(text);
+    final isDropped = _isDroppedCase(text);
+    final isDisconnected = _isDisconnectedCase(text);
+
+    // 🚨 ADDED: Dedicated Disconnected Screen
+    if (isDisconnected) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Connection Lost",
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF252525),
+                fontSize: rh(context: context, px: 25),
+                fontWeight: FontWeight.w600,
+                height: rh(context: context, px: 1.29),
+                letterSpacing: rh(context: context, px: -1),
+              ),
+            ),
+            SizedBox(
+              height: rh(context: context, px: 25),
+            ),
+            Text(
+              text.isEmpty ? "Device disconnected. Please reconnect." : text,
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF535359),
+                fontSize: rh(context: context, px: 15),
+                fontWeight: FontWeight.w400,
+                height: rh(context: context, px: 1.30),
+                letterSpacing: rh(context: context, px: -0.30),
+              ),
+            ),
+            const Expanded(child: SizedBox()),
+            _buildButton(context, isDisconnected: true), // Will show "Go Back"
+            SizedBox(
+              height: rh(context: context, px: 20),
+            ),
+          ],
+        ),
+      );
+    }
 
     if (isDropped) {
       return Padding(
@@ -47,13 +94,13 @@ class InhaleFailed extends StatelessWidget {
                   color: const Color(0xFF252525),
                   fontSize: rh(context: context, px: 25),
                   fontWeight: FontWeight.w600,
-                  height: 1.29,
-                  letterSpacing: -1,
+                  height: rh(context: context, px: 1.29),
+                  letterSpacing: rh(context: context, px: -1),
                 ),
               ),
             ),
             const Spacer(),
-            _buildButton(context),
+            _buildButton(context, isDisconnected: false),
             SizedBox(
               height: rh(context: context, px: 20),
             ),
@@ -74,8 +121,8 @@ class InhaleFailed extends StatelessWidget {
                 color: const Color(0xFF252525),
                 fontSize: rh(context: context, px: 25),
                 fontWeight: FontWeight.w600,
-                height: 1.29,
-                letterSpacing: -1,
+                height: rh(context: context, px: 1.29),
+                letterSpacing: rh(context: context, px: -1),
               ),
             ),
             SizedBox(height: rh(context: context, px: 37)),
@@ -84,7 +131,7 @@ class InhaleFailed extends StatelessWidget {
                 "assets/images/device_connection/img_inhale_screen_exhale.png",
               ),
             ),
-            _buildButton(context),
+            _buildButton(context, isDisconnected: false),
             SizedBox(
               height: rh(context: context, px: 20),
             ),
@@ -93,38 +140,7 @@ class InhaleFailed extends StatelessWidget {
       );
     }
 
-    if (isTimeout) {
-      return Padding(
-        padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "You took too long to\ninhale.",
-              style: GoogleFonts.poppins(
-                color: const Color(0xFF252525),
-                fontSize: rh(context: context, px: 25),
-                fontWeight: FontWeight.w600,
-                height: 1.29,
-                letterSpacing: -1,
-              ),
-            ),
-            SizedBox(height: rh(context: context, px: 37)),
-            Expanded(
-              child: Image.asset(
-                "assets/images/device_connection/img_exhale_timeout.png",
-              ),
-            ), // Use your timeout image here
-            _buildButton(context),
-            SizedBox(
-              height: rh(context: context, px: 20),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Generic fallback so you NEVER get a blank screen
+    // 🚨 UNCOMMENTED: Fallback screen so any other errors (like timeout) don't result in a blank screen
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
       child: Column(
@@ -136,8 +152,8 @@ class InhaleFailed extends StatelessWidget {
               color: const Color(0xFF252525),
               fontSize: rh(context: context, px: 25),
               fontWeight: FontWeight.w600,
-              height: 1.29,
-              letterSpacing: -1,
+              height: rh(context: context, px: 1.29),
+              letterSpacing: rh(context: context, px: -1),
             ),
           ),
           SizedBox(
@@ -149,13 +165,15 @@ class InhaleFailed extends StatelessWidget {
               color: const Color(0xFF535359),
               fontSize: rh(context: context, px: 15),
               fontWeight: FontWeight.w400,
-              height: 1.30,
-              letterSpacing: -0.30,
+              height: rh(context: context, px: 1.30),
+              letterSpacing: rh(context: context, px: -0.30),
             ),
           ),
           SizedBox(height: rh(context: context, px: 37)),
-          const Expanded(child: SizedBox()),
-          _buildButton(context),
+          Expanded(
+            child: Container(),
+          ),
+          _buildButton(context, isDisconnected: false),
           SizedBox(
             height: rh(context: context, px: 20),
           ),
@@ -164,26 +182,30 @@ class InhaleFailed extends StatelessWidget {
     );
   }
 
-  // Helper widget to keep code clean
-  Widget _buildButton(BuildContext context) {
+  // 🚨 ADDED: Helper widget to clean up repeated button code and handle text change
+  Widget _buildButton(BuildContext context, {required bool isDisconnected}) {
     return SizedBox(
       height: rh(context: context, px: 61),
       width: double.infinity,
       child: ElevatedButton(
-          onPressed: onStartAgain,
+          onPressed: () {
+            onStartAgain();
+          },
           style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF308BF9),
               padding:
                   EdgeInsets.symmetric(vertical: rh(context: context, px: 16)),
               elevation: 0),
           child: Text(
-            "Start Again",
+            isDisconnected
+                ? "Go Back"
+                : "Start Again", // Changes text automatically
             style: GoogleFonts.poppins(
                 color: Colors.white,
                 fontSize: rh(context: context, px: 15),
                 fontWeight: FontWeight.w700,
-                height: 1.0,
-                letterSpacing: 0.30),
+                height: rh(context: context, px: 1.0),
+                letterSpacing: rh(context: context, px: 0.30)),
           )),
     );
   }

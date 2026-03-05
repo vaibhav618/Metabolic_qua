@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../../data/week_range.dart';
+import '../week_range.dart';
 
 class TestHistoryState extends Equatable {
   final List<WeekRange> weeks;

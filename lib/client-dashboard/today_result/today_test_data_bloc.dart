@@ -16,12 +16,14 @@ class TodayTestDataBloc extends Bloc<TodayTestDataEvent, TestDataState> {
   }
 
   Future<void> _onLoad(
-      LoadTestDataForDay event,
-      Emitter<TestDataState> emit,
-      ) async {
+    LoadTestDataForDay event,
+    Emitter<TestDataState> emit,
+  ) async {
+    // 🚨 FIX: Wipe the old data from memory instantly to prevent the "state leak"
     emit(state.copyWith(
       status: TestDataStatus.loading,
       errorMessage: null,
+      result: null,
     ));
 
     try {
@@ -55,9 +57,9 @@ class TodayTestDataBloc extends Bloc<TodayTestDataEvent, TestDataState> {
   }
 
   Future<void> _onRefresh(
-      RefreshTestData event,
-      Emitter<TestDataState> emit,
-      ) async {
+    RefreshTestData event,
+    Emitter<TestDataState> emit,
+  ) async {
     final profileId = _lastProfileId;
     final dietitianId = _dietitianId;
     if (profileId == null || dietitianId == null) return;

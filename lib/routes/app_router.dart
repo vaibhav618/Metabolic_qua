@@ -65,7 +65,7 @@ import 'package:respyr_dietitian/features/notification/presentation/screens/noti
 
 import 'package:respyr_dietitian/features/retake_test/presentation/screens/retake_test_screen.dart';
 import 'package:respyr_dietitian/features/retake_test/presentation/screens/test_conditions_screen.dart';
-import 'package:respyr_dietitian/features/test_result/test_histoty/presentation/screen/test_history_screen.dart';
+import 'package:respyr_dietitian/features/test_result/test_history/presentation/screen/test_history_screen.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/presentation/data/practice_test_exhale_params.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/presentation/screens/practice_test_exhale_screen.dart';
 

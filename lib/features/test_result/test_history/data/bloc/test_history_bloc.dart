@@ -1,5 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../data/week_range.dart';
+import '../week_range.dart';
 import 'test_history_event.dart';
 import 'test_history_state.dart';
 import 'test_history_repository.dart';
@@ -34,7 +34,7 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
       final weeks = _generateWeekRanges(start, end);
 
       final safeWeeks =
-      weeks.isEmpty ? [WeekRange(start: start, end: end)] : weeks;
+          weeks.isEmpty ? [WeekRange(start: start, end: end)] : weeks;
 
       final initialIndex = _computeInitialWeekIndex(safeWeeks);
 
@@ -72,15 +72,13 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
     }
   }
 
-  void _onPrevWeek(
-      TestHistoryPrevWeek event, Emitter<TestHistoryState> emit) {
+  void _onPrevWeek(TestHistoryPrevWeek event, Emitter<TestHistoryState> emit) {
     if (state.currentWeekIndex > 0) {
       emit(state.copyWith(currentWeekIndex: state.currentWeekIndex - 1));
     }
   }
 
-  void _onNextWeek(
-      TestHistoryNextWeek event, Emitter<TestHistoryState> emit) {
+  void _onNextWeek(TestHistoryNextWeek event, Emitter<TestHistoryState> emit) {
     final nextIndex = state.currentWeekIndex + 1;
 
     final canGoNext = nextIndex < state.weeks.length &&
@@ -126,8 +124,8 @@ class TestHistoryBloc extends Bloc<TestHistoryEvent, TestHistoryState> {
 
     final firstStart = DateTime(
         weeks.first.start.year, weeks.first.start.month, weeks.first.start.day);
-    final lastEnd = DateTime(
-        weeks.last.end.year, weeks.last.end.month, weeks.last.end.day);
+    final lastEnd =
+        DateTime(weeks.last.end.year, weeks.last.end.month, weeks.last.end.day);
 
     if (today.isBefore(firstStart)) return 0;
     if (today.isAfter(lastEnd)) return weeks.length - 1;
