@@ -25,9 +25,7 @@ import '../../../menu/presentation/screens/menu.dart';
 import '../../bloc/latest_test_bloc.dart';
 import '../../bloc/latest_test_event.dart';
 import '../../bloc/latest_test_state.dart';
-import '../../../../../common/dialogs/abort_sheet_dialog.dart';
 import '../../../../../common/dialogs/floating_message.dart';
-import '../../../../../common/widgets/abort_device_manager.dart';
 import '../../../../../core/utils/date_helper.dart';
 import '../../../../../routes/app_routes.dart';
 import '../../../../bluetooth_device_connectivity/domain/params/result_screen_params.dart';
@@ -159,6 +157,16 @@ class _QuaDashboardState extends State<QuaDashboard>
     _latestTestBloc.close();
     _todayTestDataBloc.close();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant QuaDashboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Added a 1-second delay so your backend has time to save the new test
+    // before the dashboard tries to fetch it!
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) _refreshData(force: true);
+    });
   }
 
   @override
@@ -730,12 +738,12 @@ class _SwipeActionOverlay extends StatelessWidget {
         // 🚨 Removed buildWhen so the UI reacts immediately to date changes
         builder: (context, testState) {
           // 🚨 ADDED: Check if the currently selected date is today
-          final isToday = DateUtils.isSameDay(selectedDate, DateTime.now());
+          // final isToday = DateUtils.isSameDay(selectedDate, DateTime.now());
 
-          // 🚨 HIDE IF: It is NOT today, OR a test has already been taken
-          if (!isToday || testState.result != null) {
-            return const SizedBox.shrink();
-          }
+          // // 🚨 HIDE IF: It is NOT today, OR a test has already been taken
+          // if (!isToday || testState.result != null) {
+          //   return const SizedBox.shrink();
+          // }
 
           return Center(
             child: SwipeButtonWidget(

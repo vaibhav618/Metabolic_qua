@@ -1,22 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:respyr_dietitian/features/dietitian_result_screen/presentation/widgets/arc_ruler.dart';
+import 'package:intl/intl.dart';
 
-// Import your ArcRuler widget here.
-// Adjust the path if it is in a different folder (e.g., 'package:my_app/widgets/arc_ruler.dart')
+import 'package:respyr_dietitian/features/dietitian_result_screen/presentation/widgets/arc_ruler.dart';
+import 'package:respyr_dietitian/client-dashboard/data/model/client_profile_model.dart';
+import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/model/test_result_data_model_v2.dart';
+import 'package:respyr_dietitian/routes/app_routes.dart';
+
 import 'score_chart_screen.dart';
 
-class MetabolismResultProcess extends StatefulWidget {
-  final double score; // Score from 0 to 100
+class MetabolismOverallScore extends StatefulWidget {
+  final TestResultResponse testResultResponse;
+  final ClientProfileModel clientProfileModel;
 
-  const MetabolismResultProcess({super.key, required this.score});
+  const MetabolismOverallScore({
+    super.key,
+    required this.testResultResponse,
+    required this.clientProfileModel,
+  });
 
   @override
-  State<MetabolismResultProcess> createState() =>
-      _MetabolismResultProcessState();
+  State<MetabolismOverallScore> createState() => _MetabolismOverallScoreState();
 }
 
-class _MetabolismResultProcessState extends State<MetabolismResultProcess>
+class _MetabolismOverallScoreState extends State<MetabolismOverallScore>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scoreAnimation;
@@ -33,6 +41,18 @@ class _MetabolismResultProcessState extends State<MetabolismResultProcess>
     milliseconds: 4000,
   ); // CHANGED to 4 seconds
 
+  // Helper to format the live date
+  String formatDateTime(String? dateTime) {
+    if (dateTime == null || dateTime.trim().isEmpty) return '';
+    try {
+      final dt = DateTime.parse(dateTime);
+      final local = dt.toLocal();
+      return DateFormat('d MMM yyyy, h:mma').format(local);
+    } catch (_) {
+      return dateTime;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -41,13 +61,16 @@ class _MetabolismResultProcessState extends State<MetabolismResultProcess>
       duration: _animationDuration, // Applied here
     );
 
+    // 🚨 Extract the live score
+    final double liveScore = widget.testResultResponse.fatLossMetabolismScore;
+
     // 1. The Score counting up
     _scoreAnimation = Tween<double>(
       begin: 0,
-      end: widget.score,
+      end: liveScore,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
-    final finalStatusColor = _getStatusColor(widget.score);
+    final finalStatusColor = _getStatusColor(liveScore);
 
     // 2. Color Transition (Shifted earlier: 35% to 55% of animation)
     _domeColorAnimation = ColorTween(
@@ -117,6 +140,9 @@ class _MetabolismResultProcessState extends State<MetabolismResultProcess>
 
   @override
   Widget build(BuildContext context) {
+    // 🚨 Extract live score for the UI
+    final double liveScore = widget.testResultResponse.fatLossMetabolismScore;
+
     // 1. Calculate dynamic scale based on a standard 375px width screen
     final screenWidth = MediaQuery.of(context).size.width;
     final dynamicScale = screenWidth / 375.0;
@@ -124,9 +150,56 @@ class _MetabolismResultProcessState extends State<MetabolismResultProcess>
     // 2. Scale the dome base size (using your exact 628 value)
     final domeSize = 508.0 * dynamicScale;
 
+    Future<bool> navToDashboard(BuildContext context) async {
+      bool didCancel = false;
+      if (context.mounted) {
+        context.go(AppRoutes.clientDashboard, extra: widget.clientProfileModel);
+      }
+      return didCancel;
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(backgroundColor: Colors.transparent),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle:
+            false, // 🚨 Changed to false to align the block to the left
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment
+              .start, // 🚨 Added to align text left inside the column
+          children: [
+            Text(
+              widget.clientProfileModel.profileName,
+              textAlign: TextAlign.left,
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF252525),
+                fontSize: 18,
+                fontWeight: FontWeight.w400,
+                height: 1.10,
+                letterSpacing: -0.36,
+              ),
+            ),
+            Text(
+              formatDateTime(widget.testResultResponse.dateTime.toString()),
+              textAlign: TextAlign.left,
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF252525),
+                fontSize: 10,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            onPressed: () {
+              navToDashboard(context);
+            },
+            icon: const Icon(Icons.close),
+          )
+        ],
+      ),
       body: AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
@@ -242,7 +315,8 @@ class _MetabolismResultProcessState extends State<MetabolismResultProcess>
                                         Opacity(
                                           opacity: _textFadeInAnimation.value,
                                           child: Text(
-                                            "Great. Your score falls in\n${_getStatusText(widget.score)} range!",
+                                            // 🚨 Applying liveScore to the text logic
+                                            "Great. Your score falls in\n${_getStatusText(liveScore)} range!",
                                             textAlign: TextAlign.center,
                                             style: GoogleFonts.poppins(
                                               color: Colors.white,
@@ -353,7 +427,7 @@ class _MetabolismResultProcessState extends State<MetabolismResultProcess>
                         right: 0,
                         child: IgnorePointer(
                           child: ArcRuler(
-                            value: widget.score,
+                            value: liveScore, // 🚨 Real Score applied here
                             onChanged: (val) {},
                             thumbAnimationDuration:
                                 _animationDuration, // Applied here to match perfectly

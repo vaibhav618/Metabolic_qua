@@ -22,6 +22,7 @@ import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presenta
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/pages/bluetooth_new_exhale_screen.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/pages/bluetooth_start_test_device_screen.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/cubit/bluetooth_generating_result_cubit_new/bluetooth_generating_result_cubit.dart';
+import 'package:respyr_dietitian/features/dietitian_result_screen/presentation/pages/metabolic_overall_score_newest.dart';
 
 import 'package:respyr_dietitian/features/practice_test/practice_test_connection/presentation/screens/bluetooth_device_connectivity.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_home/bloc/practice_flow_bloc.dart';
@@ -507,10 +508,14 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.dietitianResultScreen,
       builder: (context, state) {
+        // 1. Extract the parameters passed during navigation
         final params = state.extra as ResultScreenParamsNew;
+
         return BlocProvider(
+          // Keep the cubit if your process/chart screens need it for data logic
           create: (_) => DietitianResultCubit(),
-          child: OverallScoreNew(
+          child: MetabolismOverallScore(
+            // 🚨 Passing the live models directly
             testResultResponse: params.result,
             clientProfileModel: params.clientProfileModel,
           ),
