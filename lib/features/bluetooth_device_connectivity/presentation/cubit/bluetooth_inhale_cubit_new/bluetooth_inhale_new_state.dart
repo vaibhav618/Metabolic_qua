@@ -106,8 +106,10 @@ class BluetoothInhaleCubitNewState {
       error: error,
       startCounter: startCounter ?? this.startCounter,
       startCounterMillis: startCounterMillis ?? this.startCounterMillis,
-      startCounterTotalMillis: startCounterTotalMillis ?? this.startCounterTotalMillis,
-      startCounterEndsAtEpochMs: startCounterEndsAtEpochMs ?? this.startCounterEndsAtEpochMs,
+      startCounterTotalMillis:
+          startCounterTotalMillis ?? this.startCounterTotalMillis,
+      startCounterEndsAtEpochMs:
+          startCounterEndsAtEpochMs ?? this.startCounterEndsAtEpochMs,
       startCounterStarted: startCounterStarted ?? this.startCounterStarted,
       startCounterFinished: startCounterFinished ?? this.startCounterFinished,
       baseValueReceived: baseValueReceived ?? this.baseValueReceived,
@@ -121,9 +123,12 @@ class BluetoothInhaleCubitNewState {
       inhaleFailReason: inhaleFailReason ?? this.inhaleFailReason,
       inBandSeconds: inBandSeconds ?? this.inBandSeconds,
       inhaleNeedRunning: inhaleNeedRunning ?? this.inhaleNeedRunning,
-      inhaleNeedTotalMillis: inhaleNeedTotalMillis ?? this.inhaleNeedTotalMillis,
-      inhaleNeedStartsAtEpochMs: inhaleNeedStartsAtEpochMs ?? this.inhaleNeedStartsAtEpochMs,
-      inhaleNeedEndsAtEpochMs: inhaleNeedEndsAtEpochMs ?? this.inhaleNeedEndsAtEpochMs,
+      inhaleNeedTotalMillis:
+          inhaleNeedTotalMillis ?? this.inhaleNeedTotalMillis,
+      inhaleNeedStartsAtEpochMs:
+          inhaleNeedStartsAtEpochMs ?? this.inhaleNeedStartsAtEpochMs,
+      inhaleNeedEndsAtEpochMs:
+          inhaleNeedEndsAtEpochMs ?? this.inhaleNeedEndsAtEpochMs,
       holdStarted: holdStarted ?? this.holdStarted,
       holdFinished: holdFinished ?? this.holdFinished,
       holdSeconds: holdSeconds ?? this.holdSeconds,

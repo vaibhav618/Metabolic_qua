@@ -81,7 +81,7 @@ class _InhaleViewScaffoldState extends State<_InhaleViewScaffold> {
   Widget build(BuildContext context) {
     return BlocListener<BluetoothInhaleCubitNew, BluetoothInhaleCubitNewState>(
       listenWhen: (previous, current) =>
-      previous.isConnected != current.isConnected ||
+          previous.isConnected != current.isConnected ||
           previous.holdFinished != current.holdFinished ||
           previous.inhaleFailed != current.inhaleFailed ||
           previous.navigateToDashboard != current.navigateToDashboard ||
@@ -126,14 +126,16 @@ class _InhaleViewScaffoldState extends State<_InhaleViewScaffold> {
     );
   }
 
-  Widget _buildScreen(BuildContext context, BluetoothInhaleCubitNewState state) {
+  Widget _buildScreen(
+      BuildContext context, BluetoothInhaleCubitNewState state) {
     if (state.inhaleFailed) {
       final isHoldBreach = state.holdBreathViolation.trim().isNotEmpty;
 
       if (isHoldBreach) {
         return HoldBreachFailed(
           text: state.holdBreathViolation.trim(),
-          onStartAgain: () => context.read<BluetoothInhaleCubitNew>().cancelTest(),
+          onStartAgain: () =>
+              context.read<BluetoothInhaleCubitNew>().cancelTest(),
         );
       }
 
@@ -143,7 +145,8 @@ class _InhaleViewScaffoldState extends State<_InhaleViewScaffold> {
 
       return InhaleFailed(
         text: msg,
-        onStartAgain: () => context.read<BluetoothInhaleCubitNew>().cancelTest(),
+        onStartAgain: () =>
+            context.read<BluetoothInhaleCubitNew>().cancelTest(),
       );
     }
 
@@ -151,7 +154,8 @@ class _InhaleViewScaffoldState extends State<_InhaleViewScaffold> {
       return NewStartTestCounterScreen(state: state);
     }
 
-    if (state.startCounterFinished || (state.holdStarted && !state.holdFinished)) {
+    if (state.startCounterFinished ||
+        (state.holdStarted && !state.holdFinished)) {
       return NewInhaleScreen(
         state: state,
         breathingSettings: widget.breathingSettings,
@@ -180,7 +184,8 @@ class _InhaleViewScaffoldState extends State<_InhaleViewScaffold> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () => context.read<BluetoothInhaleCubitNew>().cancelTest(),
+              onPressed: () =>
+                  context.read<BluetoothInhaleCubitNew>().cancelTest(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF308BF9),
                 padding: EdgeInsets.symmetric(
@@ -206,7 +211,8 @@ class _InhaleViewScaffoldState extends State<_InhaleViewScaffold> {
     );
   }
 
-  void _handleStateLogic(BuildContext context, BluetoothInhaleCubitNewState state) async {
+  void _handleStateLogic(
+      BuildContext context, BluetoothInhaleCubitNewState state) async {
     if (!mounted) return;
     if (_navigated) return;
 

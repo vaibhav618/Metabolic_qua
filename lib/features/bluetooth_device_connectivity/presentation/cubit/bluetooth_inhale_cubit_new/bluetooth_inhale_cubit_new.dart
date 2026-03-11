@@ -46,7 +46,8 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
   double get _minBand => breathingSettings.inhale.minBand.toDouble();
   double get _maxBand => breathingSettings.inhale.maxBand.toDouble();
 
-  Duration get _inhaleNeed => Duration(milliseconds: breathingSettings.inhale.timeMs);
+  Duration get _inhaleNeed =>
+      Duration(milliseconds: breathingSettings.inhale.timeMs);
 
   Duration get _inhaleAccept {
     final need = _inhaleNeed;
@@ -96,7 +97,8 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
     startCounter(from: 5);
   }
 
-  bool get _canSaveAbortTime => state.holdStarted || _holdActive || state.holdFinished;
+  bool get _canSaveAbortTime =>
+      state.holdStarted || _holdActive || state.holdFinished;
 
   void _listen() {
     _connSub = repo.connectionStatusStream().listen((connected) async {
@@ -106,13 +108,12 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
       emit(state.copyWith(isConnected: connected, error: null));
 
       if (!connected) {
-        final bool flowRunning =
-            _testStarted ||
-                state.startCounterStarted ||
-                state.startCounterFinished ||
-                state.inhaleStarted ||
-                _holdActive ||
-                state.holdStarted;
+        final bool flowRunning = _testStarted ||
+            state.startCounterStarted ||
+            state.startCounterFinished ||
+            state.inhaleStarted ||
+            _holdActive ||
+            state.holdStarted;
 
         if (flowRunning && !state.inhaleFailed && !state.inhaleFinished) {
           d("DISCONNECT during test");
@@ -137,12 +138,32 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
       final clean = data.trim();
       emit(state.copyWith(receivedData: clean, error: null));
 
-      final slashMatch = _slashNum.firstMatch(clean);
-      final curlyMatch = _curlyNum.firstMatch(clean);
+      // =======================================================================
+      // 🚨 UPDATED: Robust parsing logic. Handles 912.xx, 1012.xx, and hidden chars.
+      // =======================================================================
+      bool isSlash = clean.contains('/');
+      bool isCurly = clean.contains('{') || clean.contains('}');
+
+      if (!isSlash && !isCurly) return;
+
+      // Strips out all slashes, brackets, and spaces. Leaves ONLY digits and decimals.
+      String numberString = clean.replaceAll(RegExp(r'[^0-9.]'), '');
+
+      if (numberString.isEmpty) return;
+
+      double parsedValue = 0.0;
+      try {
+        parsedValue = double.parse(numberString);
+      } catch (e) {
+        return;
+      }
+
+      // Widened sanity check to allow for both high altitude (700) and sea level (1150)
+      if (parsedValue < 700 || parsedValue > 1150) return;
 
       // ---------------- BASE CAPTURE ----------------
-      if (!_baseCaptured && slashMatch != null) {
-        _base = double.parse(slashMatch.group(1)!);
+      if (!_baseCaptured) {
+        _base = parsedValue;
         _baseCaptured = true;
 
         d("Base captured: /$_base/");
@@ -154,9 +175,8 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
         return;
       }
 
-      if (!_baseCaptured || curlyMatch == null) return;
-
-      final inhaleValue = double.parse(curlyMatch.group(1)!);
+      final inhaleValue = parsedValue;
+      // =======================================================================
 
       _packetCount++;
       if (_packetCount <= 8 || _packetCount % 25 == 0) {
@@ -184,14 +204,16 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
         if (elapsedHold < _holdStartCheckingAfter) return;
 
         if (inhaleValue > (_base + 1.5)) {
-          emit(state.copyWith(holdBreathViolation: "Exhale detected during hold"));
+          emit(state.copyWith(
+              holdBreathViolation: "Exhale detected during hold"));
           unawaited(setCancelOrDisconnectFlag());
           _finishFail("Exhale detected during hold");
           return;
         }
 
         if (inhaleValue < (_base - 1.5)) {
-          emit(state.copyWith(holdBreathViolation: "Inhale detected during hold"));
+          emit(state.copyWith(
+              holdBreathViolation: "Inhale detected during hold"));
           unawaited(setCancelOrDisconnectFlag());
           _finishFail("Inhale detected during hold");
           return;
@@ -233,7 +255,9 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
         d("Inhale armed at ${inhaleProgress.toStringAsFixed(2)}");
       }
 
-      if (_armed && !_dropFailTriggered && inhaleProgress <= _dropToZeroThreshold) {
+      if (_armed &&
+          !_dropFailTriggered &&
+          inhaleProgress <= _dropToZeroThreshold) {
         _dropFailTriggered = true;
         d("FAIL: dropped near zero");
         _finishFail("Inhale dropped to 0");
@@ -254,7 +278,8 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
     _exhaleTimer?.cancel();
     _exhaleTimer = Timer(const Duration(milliseconds: 700), () {
       _exhaleTimerRunning = false;
-      if (_disposed || _cancelled || _flowStopped || state.inhaleFinished) return;
+      if (_disposed || _cancelled || _flowStopped || state.inhaleFinished)
+        return;
       _finishFail("Exhale detected instead of inhale");
     });
   }
@@ -345,7 +370,11 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
   }
 
   void _sendStart() {
-    if (_disposed || _cancelled || _flowStopped || _startSent || !repo.isConnected) return;
+    if (_disposed ||
+        _cancelled ||
+        _flowStopped ||
+        _startSent ||
+        !repo.isConnected) return;
     _startSent = true;
     d("SEND '1' start");
     send("1");
@@ -390,7 +419,8 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
     }
 
     _inhaleNeedTicker = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (_disposed || _cancelled || _flowStopped || state.inhaleFinished) return;
+      if (_disposed || _cancelled || _flowStopped || state.inhaleFinished)
+        return;
 
       final now = DateTime.now();
       final last = _inhaleNeedLastTickAt ?? now;
@@ -422,7 +452,8 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
   void _startOutOfBandFailTimerIfNeeded(String reason) {
     if (_outOfBandTimer != null) return;
     _outOfBandTimer = Timer(_failOutOfBand, () {
-      if (_disposed || _cancelled || _flowStopped || state.inhaleFinished) return;
+      if (_disposed || _cancelled || _flowStopped || state.inhaleFinished)
+        return;
       _finishFail(reason);
     });
   }
@@ -512,7 +543,8 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
       inhaleFailReason: reason,
       inhaleNeedRunning: false,
       inhaleNeedTotalMillis: _inhaleNeed.inMilliseconds,
-      inhaleNeedEndsAtEpochMs: (state.inhaleNeedStartsAtEpochMs == 0) ? 0 : nowMs,
+      inhaleNeedEndsAtEpochMs:
+          (state.inhaleNeedStartsAtEpochMs == 0) ? 0 : nowMs,
       holdStarted: false,
       holdFinished: false,
     ));
@@ -555,21 +587,19 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
   }
 
   Future<void> cancelTest() async {
-
     if (_canSaveAbortTime) {
       await setCancelOrDisconnectFlag();
     }
 
     if (repo.isConnected) {
       try {
-       if(!state.inhaleFailed) repo.sendData("&");
+        if (!state.inhaleFailed) repo.sendData("&");
       } catch (e) {
         emit(state.copyWith(error: e.toString()));
       }
     } else {
       d("CANCEL: skip '&' (not connected)");
     }
-
 
     if (_disposed) return;
     if (_cancelled) return;
@@ -593,8 +623,6 @@ class BluetoothInhaleCubitNew extends Cubit<BluetoothInhaleCubitNewState> {
     _holdTicker = null;
     _holdActive = false;
     _holdDone = false;
-
-
 
     emit(state.copyWith(
       inhaleFinished: true,

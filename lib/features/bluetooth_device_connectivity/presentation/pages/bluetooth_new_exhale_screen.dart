@@ -34,7 +34,7 @@ class BluetoothNewExhaleScreen extends StatelessWidget {
     required this.dietPlanStrategyModel,
     required this.minRange,
     required this.maxRange,
-     required this.breathingSettings,
+    required this.breathingSettings,
   });
 
   @override
@@ -45,13 +45,15 @@ class BluetoothNewExhaleScreen extends StatelessWidget {
       create: (_) => BluetoothExhaleCubit(
         repo: context.read<BluetoothRepository>(),
         processor: BluetoothBlowProcessor(),
-        baseValue: wrappedBase, breathingSettings: breathingSettings,
+        baseValue: wrappedBase,
+        breathingSettings: breathingSettings,
       ),
       child: _BluetoothNewExhaleScreenView(
         clientProfileModel: clientProfileModel,
         dietPlanStrategyModel: dietPlanStrategyModel,
         minRange: minRange,
-        maxRange: maxRange, breathingSettings: breathingSettings,
+        maxRange: maxRange,
+        breathingSettings: breathingSettings,
       ),
     );
   }
@@ -68,7 +70,8 @@ class _BluetoothNewExhaleScreenView extends StatefulWidget {
     required this.clientProfileModel,
     required this.dietPlanStrategyModel,
     required this.minRange,
-    required this.maxRange, required this.breathingSettings,
+    required this.maxRange,
+    required this.breathingSettings,
   });
 
   @override
@@ -76,16 +79,14 @@ class _BluetoothNewExhaleScreenView extends StatefulWidget {
       _BluetoothNewExhaleScreenViewState();
 }
 
-
-class _BluetoothNewExhaleScreenViewState extends State<_BluetoothNewExhaleScreenView> {
+class _BluetoothNewExhaleScreenViewState
+    extends State<_BluetoothNewExhaleScreenView> {
   bool _disconnectDialogShown = false;
 
-
-
   void _onCancel(BuildContext context, BluetoothExhaleState state) {
-    if(state.exhaleFailed){
-       context.read<BluetoothExhaleCubit>().cancelTest();
-    }else{
+    if (state.exhaleFailed) {
+      context.read<BluetoothExhaleCubit>().cancelTest();
+    } else {
       showCancelTestDialog(context, () async {
         await context.read<BluetoothExhaleCubit>().cancelTest();
       });
@@ -98,9 +99,12 @@ class _BluetoothNewExhaleScreenViewState extends State<_BluetoothNewExhaleScreen
 
     _disconnectDialogShown = true;
 
-    await showDeviceDisconnectedBox(context: context, onButtonPressed: () {
-      context.go(AppRoutes.clientDashboard, extra: widget.clientProfileModel);
-    });
+    await showDeviceDisconnectedBox(
+        context: context,
+        onButtonPressed: () {
+          context.go(AppRoutes.clientDashboard,
+              extra: widget.clientProfileModel);
+        });
     if (mounted) {
       _disconnectDialogShown = false;
     }
@@ -122,7 +126,7 @@ class _BluetoothNewExhaleScreenViewState extends State<_BluetoothNewExhaleScreen
   Widget build(BuildContext context) {
     return BlocListener<BluetoothExhaleCubit, BluetoothExhaleState>(
       listenWhen: (prev, curr) =>
-      prev.isConnected != curr.isConnected ||
+          prev.isConnected != curr.isConnected ||
           prev.exhaleSuccess != curr.exhaleSuccess ||
           prev.exhaleFailed != curr.exhaleFailed ||
           prev.analysisReady != curr.analysisReady ||
@@ -131,10 +135,10 @@ class _BluetoothNewExhaleScreenViewState extends State<_BluetoothNewExhaleScreen
         if (state.cancelTest || state.navigateToDashboard) {
           _closeDisconnectDialogIfOpen(context);
 
-
           // if navigating is already requested, do it and return
           if (state.navigateToDashboard) {
-            context.go(AppRoutes.clientDashboard, extra: widget.clientProfileModel);
+            context.go(AppRoutes.clientDashboard,
+                extra: widget.clientProfileModel);
           }
           return;
         }
@@ -148,8 +152,8 @@ class _BluetoothNewExhaleScreenViewState extends State<_BluetoothNewExhaleScreen
 
         if (state.analysisReady) {
           if (state.blowValues.isNotEmpty) {
-            final averageValue =
-                state.blowValues.reduce((a, b) => a + b) / state.blowValues.length;
+            final averageValue = state.blowValues.reduce((a, b) => a + b) /
+                state.blowValues.length;
             final dummyParams = GeneratingResultParams(
               maxPressure: state.blowValues.reduce(max),
               bestPressure: averageValue,
@@ -169,12 +173,13 @@ class _BluetoothNewExhaleScreenViewState extends State<_BluetoothNewExhaleScreen
         }
 
         if (state.navigateToDashboard) {
-          context.go(AppRoutes.clientDashboard, extra: widget.clientProfileModel);
+          context.go(AppRoutes.clientDashboard,
+              extra: widget.clientProfileModel);
         }
       },
       child: BlocBuilder<BluetoothExhaleCubit, BluetoothExhaleState>(
         buildWhen: (p, c) =>
-        p.progress != c.progress ||
+            p.progress != c.progress ||
             p.inRange != c.inRange ||
             p.exhaleStarted != c.exhaleStarted ||
             p.holdSecondsLeft != c.holdSecondsLeft ||
@@ -191,9 +196,12 @@ class _BluetoothNewExhaleScreenViewState extends State<_BluetoothNewExhaleScreen
               },
               child: Scaffold(
                 backgroundColor: Colors.white,
-                appBar: ExhaleScreenAppBar(context: context, cancelTestClicked: () {
-                  _onCancel(context, state);
-                }, ),
+                appBar: ExhaleScreenAppBar(
+                  context: context,
+                  cancelTestClicked: () {
+                    _onCancel(context, state);
+                  },
+                ),
                 body: SafeArea(
                   child: ExhaleFailed(
                     state: state,
@@ -213,9 +221,16 @@ class _BluetoothNewExhaleScreenViewState extends State<_BluetoothNewExhaleScreen
             },
             child: Scaffold(
               backgroundColor: Colors.white,
-              appBar: ExhaleScreenAppBar(context: context,  cancelTestClicked: () {   _onCancel(context, state);  }),
+              appBar: ExhaleScreenAppBar(
+                  context: context,
+                  cancelTestClicked: () {
+                    _onCancel(context, state);
+                  }),
               body: SafeArea(
-                child: NewExhaleScreen2(state: state, breathingSettings: widget.breathingSettings,),
+                child: NewExhaleScreen2(
+                  state: state,
+                  breathingSettings: widget.breathingSettings,
+                ),
               ),
             ),
           );

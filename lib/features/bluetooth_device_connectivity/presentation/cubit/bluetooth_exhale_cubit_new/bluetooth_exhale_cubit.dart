@@ -36,7 +36,8 @@ class BluetoothExhaleCubit extends Cubit<BluetoothExhaleState> {
 
   Duration get _holdTotalMs =>
       Duration(milliseconds: breathingSettings.exhale.timeMs);
-  Duration get _holdAcceptMs => _holdTotalMs - const Duration(milliseconds: 500);
+  Duration get _holdAcceptMs =>
+      _holdTotalMs - const Duration(milliseconds: 500);
 
   static const double _stopProgressThreshold = 0.0;
   static const double _inhaleDrop = 1;
@@ -61,13 +62,18 @@ class BluetoothExhaleCubit extends Cubit<BluetoothExhaleState> {
 
   bool _exhaleDetected = false;
 
+  // 🚨 NEW: Track the last emitted progress to stop UI stuttering!
+  double _lastEmittedProgress = -1.0;
+
+  // 🚨 NEW: Track the smoothed value for the low-pass filter
+  double _smoothedProgress = 0.0;
+
+  // 🚨 FIX 1: Bulletproof parsing for the passed-in baseValue
   double get _baseDouble {
-    final normal = double.tryParse(baseValue.trim());
-    if (normal != null) return normal;
-
-    final m = _slashNum.firstMatch(baseValue.trim());
-    if (m != null) return double.tryParse(m.group(1)!) ?? 0.0;
-
+    String cleanBase = baseValue.replaceAll(RegExp(r'[^0-9.]'), '');
+    if (cleanBase.isNotEmpty) {
+      return double.tryParse(cleanBase) ?? 0.0;
+    }
     return 0.0;
   }
 
@@ -84,8 +90,9 @@ class BluetoothExhaleCubit extends Cubit<BluetoothExhaleState> {
     processor.reset();
     processor.processBlowData(
       baseValue,
-          (val) => Thresholds.calculateThresholdPercentage(val),
-          (baseVal, blowVal) => Thresholds.calculateBlowPercentage1(baseVal, blowVal, breathingSettings.exhale.threshold.toDouble()),
+      (val) => Thresholds.calculateThresholdPercentage(val),
+      (baseVal, blowVal) => Thresholds.calculateBlowPercentage1(
+          baseVal, blowVal, breathingSettings.exhale.threshold.toDouble()),
     );
 
     _holdRemainingMs = _holdTotalMs.inMilliseconds;
@@ -100,6 +107,8 @@ class BluetoothExhaleCubit extends Cubit<BluetoothExhaleState> {
     _failed = false;
     _abortSent = false;
     _exhaleDetected = false;
+    _lastEmittedProgress = -1.0; // Reset throttle
+    _smoothedProgress = 0.0; // Reset smoothed value
 
     _cancelStartTimeoutTimers();
 
@@ -193,7 +202,9 @@ class BluetoothExhaleCubit extends Cubit<BluetoothExhaleState> {
           state.exhaleFailed) return;
 
       _failed = true;
-      _fail(reason: "Timeout: No exhale detected within $_startTimeoutSec seconds.");
+      _fail(
+          reason:
+              "Timeout: No exhale detected within $_startTimeoutSec seconds.");
     });
   }
 
@@ -237,25 +248,40 @@ class BluetoothExhaleCubit extends Cubit<BluetoothExhaleState> {
     if (_failed) return;
 
     final clean = data.trim();
-    emit(state.copyWith(receivedData: clean, error: null));
+
+    // 🚨 REMOVED the unthrottled emit(receivedData) from here to stop the spam
 
     if (_exhaleSucceeded) {
-      if (clean.toLowerCase() == "analize") {
+      if (clean.toLowerCase().contains("analize") ||
+          clean.toLowerCase().contains("analyze")) {
         emit(state.copyWith(analysisReady: true));
       }
       return;
     }
 
-    final m = _curlyNum.firstMatch(clean);
-    if (m == null) return;
+    // =======================================================================
+    // 🚨 FIX 2: BULLETPROOF STRING PARSING
+    // =======================================================================
+    bool isCurly = clean.contains('{') || clean.contains('}');
+    if (!isCurly) return; // Ignore non-pressure packets
 
-    final blowVal = double.tryParse(m.group(1) ?? "");
-    if (blowVal == null) return;
+    String numberString = clean.replaceAll(RegExp(r'[^0-9.]'), '');
+    if (numberString.isEmpty) return;
+
+    double blowVal = 0.0;
+    try {
+      blowVal = double.parse(numberString);
+    } catch (e) {
+      return;
+    }
+
+    if (blowVal < 700 || blowVal > 1150) return; // Widened safety bounds
+    // =======================================================================
 
     final base = _baseDouble;
 
-    // exhale detection: value > base
-    if (!_exhaleDetected && blowVal > base+0.5) {
+    // exhale detection: value > base + 0.5 (filters out ambient room noise)
+    if (!_exhaleDetected && blowVal > base + 0.5) {
       _exhaleDetected = true;
       d("Exhale detected: $blowVal > $base");
       _cancelStartTimeoutTimers();
@@ -276,36 +302,63 @@ class BluetoothExhaleCubit extends Cubit<BluetoothExhaleState> {
     }
 
     _blowValues.add(blowVal);
-    emit(state.copyWith(blowValues: List<double>.unmodifiable(_blowValues)));
+
     double progress = 0;
     if (blowVal > base) {
-      progress = Thresholds.calculateBlowPercentage1(base, blowVal, breathingSettings.exhale.threshold.toDouble());
+      progress = Thresholds.calculateBlowPercentage1(
+          base, blowVal, breathingSettings.exhale.threshold.toDouble());
     }
 
-    _handleProgress(progress);
+    // 🚨 NOISE GATE: Pin the ball to the bottom (0.0) until the actual breath breaks the noise threshold.
+    // This stops the ball from "floating" or vibrating while waiting for you to blow.
+    if (!_exhaleDetected) {
+      progress = 0.0;
+    }
+
+    _handleProgress(progress, clean);
   }
 
-  void _handleProgress(double progress) {
+  void _handleProgress(double rawProgress, String cleanData) {
     if (_disposed || _finalized) return;
     if (_failed) return;
     if (state.exhaleFailed || state.exhaleSuccess) return;
 
-    final nowInRange = (progress >= _minRange && progress <= _maxRange);
+    // =======================================================================
+    // 🚨 FAST SYMMETRIC SMOOTHING
+    // 80% reaction speed for both UP and DOWN.
+    // Fast and tight response both ways, hiding just the micro-jitter.
+    // =======================================================================
+    const double alpha = 0.80;
+    if (_lastEmittedProgress < 0) {
+      _smoothedProgress = rawProgress;
+    } else {
+      _smoothedProgress =
+          (rawProgress * alpha) + (_smoothedProgress * (1.0 - alpha));
+    }
+
+    final nowInRange =
+        (_smoothedProgress >= _minRange && _smoothedProgress <= _maxRange);
+    final newlyStarted = !state.exhaleStarted && nowInRange;
+
+    _lastEmittedProgress = _smoothedProgress;
 
     emit(state.copyWith(
-      progress: progress,
+      progress: _smoothedProgress,
       inRange: nowInRange,
       inRangeDurationMs: _inRangeAccumMs,
+      blowValues: List<double>.unmodifiable(_blowValues),
+      receivedData: cleanData,
+      error: null,
+      exhaleStarted: newlyStarted ? true : state.exhaleStarted,
     ));
 
-    if (!state.exhaleStarted && nowInRange) {
-      emit(state.copyWith(exhaleStarted: true));
+    if (newlyStarted) {
       _cancelStartTimeoutTimers();
       _resumeHoldCountdown();
       return;
     }
 
-    if (state.exhaleStarted && progress <= _stopProgressThreshold) {
+    if (state.exhaleStarted && _smoothedProgress <= _stopProgressThreshold) {
       _failed = true;
       _fail(reason: "Exhale failed: you stopped exhaling.");
       return;
@@ -326,6 +379,7 @@ class BluetoothExhaleCubit extends Cubit<BluetoothExhaleState> {
 
     _lastHoldTickAt = DateTime.now();
 
+    // 100ms emission is fine here because it's a controlled 10Hz, not tied to BLE packet spam
     _holdTicker = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (_disposed || _finalized) return;
       if (_failed) return;

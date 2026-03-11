@@ -23,8 +23,8 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
 
   Timer? _finishTimer;
   Timer? _secondTimer;
-  Timer? _startRetryTimer; // 🚨 Added for Cold Heater fix
-  DateTime? _startSentAt; // 🚨 Added for Safe Abort fix
+  Timer? _startRetryTimer;
+  DateTime? _startSentAt;
 
   bool _disposed = false;
   bool _startSent = false;
@@ -32,11 +32,17 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
   bool _cancelled = false;
   bool _flowStopped = false;
 
-  // 🚨 NEW: Flag to silently track low battery during an active test
+  // 🚨 ACCUMULATOR & SMOOTHING VARS
+  String _incomingBuffer = "";
+  double _lastEmittedProgress = -1.0;
+  double _smoothedProgress = 0.0;
+  bool _exhaleDetected = false;
+
   bool _batteryDiedDuringTest = false;
 
-  final RegExp _slashNum = RegExp(r'^\s*/\s*(\d+(?:\.\d+)?)\s*/\s*$');
-  final RegExp _curlyNum = RegExp(r'^\s*\{\s*(\d+(?:\.\d+)?)\s*\}\s*$');
+  // 🚨 UNANCHORED REGEX
+  final RegExp _slashNum = RegExp(r'/\s*(\d+(?:\.\d+)?)\s*/');
+  final RegExp _curlyNum = RegExp(r'\{\s*(\d+(?:\.\d+)?)\s*\}');
 
   bool _baseCaptured = false;
   double _base = 0;
@@ -88,7 +94,6 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
     _listen();
     emit(state.copyWith(isConnected: repo.isConnected));
 
-    // THE FIX: Wait 500ms for Inhale Cubit to die, then send '^' directly
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!_disposed) {
         _startExhaleHandshake();
@@ -130,27 +135,23 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
       if (_disposed || _cancelled || _flowStopped) return;
       if (!repo.isConnected || data.isEmpty) return;
 
-      final clean = data.trim();
+      // 🚨 ACCUMULATOR
+      _incomingBuffer += data;
 
-      // 🚨 SILENT CATCH: Note the low battery, but DO NOT return or fail.
-      // Let the code continue so the test can finish on backup power.
-      if (clean.contains("ERROR") && clean.contains("003")) {
+      if (_incomingBuffer.contains("ERROR") &&
+          _incomingBuffer.contains("003")) {
         _batteryDiedDuringTest = true;
-        return; // Ignore this specific packet so Regex doesn't break, let next packet flow
+        _incomingBuffer =
+            _incomingBuffer.replaceAll(RegExp(r'ERROR\s*003'), '');
       }
 
-      d("Data received: '$clean'");
-      emit(state.copyWith(receivedData: clean, error: null));
-
-      // --- AGGRESSIVE HANDSHAKE FIX ---
-      // We know the device sends '%' or 'blownow' when it accepts '^'
+      // 1. Ready Handshake Check
       if (!_deviceReadyForExhale) {
-        final isRawData =
-            _slashNum.hasMatch(clean) || _curlyNum.hasMatch(clean);
-        final lower = clean.toLowerCase();
-
-        // 🚨 REMOVED the '%' check here! Now it MUST wait for the hardware to say "blownow"
-        if (lower.contains("exhale") || lower.contains("blow") || isRawData) {
+        final lower = _incomingBuffer.toLowerCase();
+        if (lower.contains("exhale") ||
+            lower.contains("blow") ||
+            _curlyNum.hasMatch(_incomingBuffer) ||
+            _slashNum.hasMatch(_incomingBuffer)) {
           d("Device is READY. Starting 5-second counter.");
           _deviceReadyForExhale = true;
           _waitingExhaleAck = false;
@@ -158,90 +159,123 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
           _stopExhaleAckTimers();
           _stopPercentTimers();
           startCounter(from: 5);
-
-          if (!isRawData) return;
         }
       }
 
-      if (_waitingPercentAck && clean == "%") {
+      // 2. Percent ACK Check
+      if (_waitingPercentAck && _incomingBuffer.contains("%")) {
         _waitingPercentAck = false;
         _stopPercentTimers();
         _resetForFreshStart();
+        // ✅ CORRECTED: Was _startInhaleHandshake
         _startExhaleHandshake();
+        _incomingBuffer = "";
         return;
       }
 
       if (!_testStarted) return;
       if (state.exhaleFailed || state.exhaleFinished) return;
 
-      final slashMatch = _slashNum.firstMatch(clean);
-      final curlyMatch = _curlyNum.firstMatch(clean);
-
-      // 🚨 FIX: Fallback to curly braces if the slash was missed during the countdown
-      if (!_baseCaptured) {
-        if (slashMatch != null) {
-          _base = double.parse(slashMatch.group(1)!);
-          _baseCaptured = true;
-          _startRetryTimer?.cancel(); // 🚨 Stop retrying! Data is flowing
-          emit(state.copyWith(
-              baseValueReceived: true, blowExhaleBaseValue: _base));
-          return;
-        } else if (curlyMatch != null) {
-          _base = double.parse(curlyMatch.group(1)!);
-          _baseCaptured = true;
-          _startRetryTimer?.cancel(); // 🚨 Stop retrying! Data is flowing
-          emit(state.copyWith(
-              baseValueReceived: true, blowExhaleBaseValue: _base));
-          return;
+      // 3. Process Numeric Packets in Buffer
+      while (true) {
+        if (!_baseCaptured) {
+          final m = _slashNum.firstMatch(_incomingBuffer);
+          if (m != null) {
+            _base = double.parse(m.group(1)!);
+            _baseCaptured = true;
+            _startRetryTimer?.cancel();
+            emit(state.copyWith(
+                baseValueReceived: true, blowExhaleBaseValue: _base));
+            _incomingBuffer = _incomingBuffer.substring(m.end);
+            continue;
+          }
         }
-        return;
+
+        final m = _curlyNum.firstMatch(_incomingBuffer);
+        if (m != null) {
+          final exhaleRaw = double.parse(m.group(1)!);
+          _processExhalePacket(exhaleRaw);
+          _incomingBuffer = _incomingBuffer.substring(m.end);
+          continue;
+        }
+
+        break;
       }
+    });
+  }
 
-      if (curlyMatch == null) return;
+  void _processExhalePacket(double exhaleValue) {
+    if (state.exhaleFailed || state.exhaleFinished) return;
 
-      final exhaleValue = double.parse(curlyMatch.group(1)!);
+    // 🚨 WIDENED SANITY CHECK
+    if (exhaleValue < 700 || exhaleValue > 1150) return;
 
-      _packetCount++;
-      if (_packetCount <= 8 || _packetCount % 25 == 0) {
-        d("pkt=$_packetCount raw=$exhaleValue base=$_base");
-      }
+    _packetCount++;
+    if (_packetCount <= 8 || _packetCount % 25 == 0) {
+      d("pkt=$_packetCount raw=$exhaleValue base=$_base detected=$_exhaleDetected");
+    }
 
-      if (exhaleValue < _base - 1.5) {
-        unawaited(_setCancelOrDisconnectFlag());
-        _finishFail("Inhale detected instead of exhale");
-        return;
-      }
+    // 🚨 NOISE GATE & DETECTION
+    if (!_exhaleDetected && exhaleValue > _base + 0.5) {
+      _exhaleDetected = true;
+      d("Exhale detected: $exhaleValue > $_base");
+    }
 
-      final signed = Thresholds.calculateBlowPercentage1(
+    if (exhaleValue < (_base - 1.5)) {
+      unawaited(_setCancelOrDisconnectFlag());
+      _finishFail("Oops! You inhaled instead of exhaling.");
+      return;
+    }
+
+    if (_exhaleDetected && exhaleValue <= _base + 0.5) {
+      _finishFail("Exhale failed: you stopped exhaling.");
+      return;
+    }
+
+    double rawProgress = 0;
+    if (exhaleValue > _base) {
+      rawProgress = Thresholds.calculateBlowPercentage1(
         _base,
         exhaleValue,
         breathingSettings.exhale.threshold.toDouble(),
       );
+    }
 
-      final exhaleProgress = signed > 0 ? signed : 0.0;
-      final startedNow = exhaleProgress >= _armAt;
+    if (!_exhaleDetected) rawProgress = 0.0;
 
-      emit(state.copyWith(
-        progressSigned: signed,
-        progress: startedNow ? exhaleProgress : 0,
-        exhaleStarted: startedNow ? true : state.exhaleStarted,
-        exhaleFinished: state.exhaleFinished,
-      ));
+    // 🚨 FAST SYMMETRIC SMOOTHING (Low-Pass Filter)
+    const double alpha = 0.80;
+    if (_lastEmittedProgress < 0) {
+      _smoothedProgress = rawProgress;
+    } else {
+      _smoothedProgress =
+          (rawProgress * alpha) + (_smoothedProgress * (1.0 - alpha));
+    }
+    _lastEmittedProgress = _smoothedProgress;
 
-      if (!_armed && startedNow) _armed = true;
+    final exhaleProgress = _smoothedProgress > 0 ? _smoothedProgress : 0.0;
+    final startedNow = exhaleProgress >= _armAt;
 
-      if (_armed &&
-          !_dropFailTriggered &&
-          exhaleProgress <= _dropToZeroThreshold) {
-        _dropFailTriggered = true;
-        _finishFail("Exhale dropped to 0");
-        return;
-      }
+    emit(state.copyWith(
+      progressSigned: exhaleValue - _base,
+      progress: startedNow ? exhaleProgress : 0,
+      exhaleStarted: startedNow ? true : state.exhaleStarted,
+      exhaleFinished: state.exhaleFinished,
+    ));
 
-      if (_armed && !state.exhaleFinished) {
-        _applyBandRules(exhaleProgress);
-      }
-    });
+    if (!_armed && startedNow) _armed = true;
+
+    if (_armed &&
+        !_dropFailTriggered &&
+        exhaleProgress <= _dropToZeroThreshold) {
+      _dropFailTriggered = true;
+      _finishFail("Exhale dropped to 0");
+      return;
+    }
+
+    if (_armed && !state.exhaleFinished) {
+      _applyBandRules(exhaleProgress);
+    }
   }
 
   void _startExhaleHandshake() {
@@ -348,7 +382,8 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
 
       _waitingPercentAck = false;
       _stopPercentTimers();
-      emit(state.copyWith(error: "No response for % from device"));
+      // ✅ CORRECTED: Was _startInhaleHandshake
+      _startExhaleHandshake();
     });
   }
 
@@ -432,7 +467,7 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
 
     _startSent = true;
     _testStarted = true;
-    _startSentAt = DateTime.now(); // Record start time for safe aborts
+    _startSentAt = DateTime.now();
 
     void sendStartCmd() {
       if (!repo.isConnected || _disposed || _cancelled || _baseCaptured) return;
@@ -444,7 +479,6 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
 
     sendStartCmd();
 
-    // 🚨 THE FIX: Keep sending '1' every 1.5s until the cold heater responds!
     _startRetryTimer?.cancel();
     _startRetryTimer =
         Timer.periodic(const Duration(milliseconds: 1500), (timer) {
@@ -635,6 +669,9 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
     _exhaleNeedLastTickAt = null;
     _dropFailTriggered = false;
     _batteryDiedDuringTest = false;
+    _exhaleDetected = false;
+    _lastEmittedProgress = -1.0;
+    _incomingBuffer = ""; // Reset accumulator
     _startRetryTimer?.cancel();
     _pauseExhaleNeedTicker(setRunningFalse: false);
     _cancelOutOfBandFailTimer();
@@ -698,7 +735,6 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
 
     if (repo.isConnected && !state.exhaleFailed) {
       try {
-        // repo.sendData("&");
         repo.sendData("2");
       } catch (e) {
         emit(state.copyWith(error: e.toString()));
@@ -707,7 +743,6 @@ class PracticeTestExhaleCubit extends Cubit<PracticeTestExhaleState> {
 
     if (!state.startCounterFinished) {
       try {
-        // repo.sendData("&");
         repo.sendData("&");
       } catch (e) {
         emit(state.copyWith(error: e.toString()));

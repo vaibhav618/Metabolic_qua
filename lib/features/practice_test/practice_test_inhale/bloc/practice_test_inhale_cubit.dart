@@ -30,11 +30,14 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
   bool _cancelled = false;
   bool _flowStopped = false;
 
-  // 🚨 NEW: Flag to silently track low battery during an active test
+  // 🚨 NEW: ACCUMULATOR BUFFER (String Interpolation Method)
+  String _incomingBuffer = "";
+
   bool _lowBatteryDetectedDuringTest = false;
 
-  final RegExp _slashNum = RegExp(r'^\s*/\s*(\d+(?:\.\d+)?)\s*/\s*$');
-  final RegExp _curlyNum = RegExp(r'^\s*\{\s*(\d+(?:\.\d+)?)\s*\}\s*$');
+  // 🚨 UPDATED: REGEX TO MATCH MAIN TEST (removed anchoring for fragment support)
+  final RegExp _slashNum = RegExp(r'/\s*(\d+(?:\.\d+)?)\s*/');
+  final RegExp _curlyNum = RegExp(r'\{\s*(\d+(?:\.\d+)?)\s*\}');
 
   bool _baseCaptured = false;
   double _base = 0;
@@ -123,99 +126,111 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
       if (!repo.isConnected) return;
       if (data.isEmpty) return;
 
-      final clean = data.trim();
-      emit(state.copyWith(receivedData: clean, error: null));
+      // =======================================================================
+      // 🚨 STRING INTERPOLATION METHOD (ACCUMULATOR)
+      // =======================================================================
+      _incomingBuffer += data;
 
-      if (_waitingPercentAck) {
-        if (clean == "%") {
-          _waitingPercentAck = false;
-          _stopPercentTimers();
-          _resetForFreshStart();
-          _startInhaleHandshake();
-        }
+      // Check for raw ACK signals in the buffer
+      if (_waitingPercentAck && _incomingBuffer.contains("%")) {
+        _waitingPercentAck = false;
+        _stopPercentTimers();
+        _resetForFreshStart();
+        _startInhaleHandshake();
+        _incomingBuffer = "";
         return;
       }
 
-      if (_waitingInhaleAck && !_deviceReadyForInhale) {
-        if (clean.toLowerCase() == "inhale") {
-          _deviceReadyForInhale = true;
-          _waitingInhaleAck = false;
-          _stopInhaleAckTimers();
-          startCounter(from: 5);
-        }
+      if (_waitingInhaleAck &&
+          _incomingBuffer.toLowerCase().contains("inhale")) {
+        _deviceReadyForInhale = true;
+        _waitingInhaleAck = false;
+        _stopInhaleAckTimers();
+        startCounter(from: 5);
+        _incomingBuffer = "";
         return;
       }
 
       if (!_testStarted) return;
-      if (state.inhaleFailed || state.inhaleFinished) return;
 
-      final slashMatch = _slashNum.firstMatch(clean);
-      final curlyMatch = _curlyNum.firstMatch(clean);
-
-      // 🚨 FIX: Fallback to curly braces if the slash packet was sent during the countdown
-      if (!_baseCaptured) {
-        if (slashMatch != null) {
-          _base = double.parse(slashMatch.group(1)!);
-          _baseCaptured = true;
-          emit(state.copyWith(
-              baseValueReceived: true, blowExhaleBaseValue: _base));
-          return;
-        } else if (curlyMatch != null) {
-          _base = double.parse(curlyMatch.group(1)!);
-          _baseCaptured = true;
-          emit(state.copyWith(
-              baseValueReceived: true, blowExhaleBaseValue: _base));
-          return;
+      // 🚨 PROCESS ACCUMULATED DATA PACKETS
+      while (true) {
+        // 1. Check for Base Capture (/.../)
+        if (!_baseCaptured) {
+          final m = _slashNum.firstMatch(_incomingBuffer);
+          if (m != null) {
+            final val = double.tryParse(m.group(1) ?? "");
+            if (val != null && val >= 700 && val <= 1150) {
+              _base = val;
+              _baseCaptured = true;
+              emit(state.copyWith(
+                  baseValueReceived: true, blowExhaleBaseValue: _base));
+            }
+            _incomingBuffer = _incomingBuffer.substring(m.end);
+            continue;
+          }
         }
-        return;
-      }
 
-      if (curlyMatch == null) return;
+        // 2. Check for Inhale Data ({...})
+        final m = _curlyNum.firstMatch(_incomingBuffer);
+        if (m != null) {
+          final val = double.tryParse(m.group(1) ?? "");
+          if (val != null && val >= 700 && val <= 1150) {
+            _processInhalePacket(val);
+          }
+          _incomingBuffer = _incomingBuffer.substring(m.end);
+          continue;
+        }
 
-      final inhaleValue = double.parse(curlyMatch.group(1)!);
-
-      _packetCount++;
-      if (_packetCount <= 8 || _packetCount % 25 == 0) {
-        d("pkt=$_packetCount raw=$inhaleValue base=$_base");
-      }
-
-      // 🚨 UPDATED RULE: Relaxed to 1.5 to absorb natural sensor rebound when dropping the ball
-      if (inhaleValue > _base + 1.5) {
-        unawaited(_setCancelOrDisconnectFlag());
-        _finishFail("Exhale detected instead of inhale");
-        return;
-      }
-
-      final signed = Thresholds.calculateInhalePercentage(
-        _base,
-        inhaleValue,
-        breathingSettings.inhale.threshold.toDouble(),
-      );
-
-      final inhaleProgress = signed < 0 ? (-signed) : 0.0;
-      final startedNow = inhaleProgress >= _armAt;
-
-      emit(state.copyWith(
-        progressSigned: signed,
-        progress: startedNow ? inhaleProgress : 0,
-        inhaleStarted: startedNow ? true : state.inhaleStarted,
-        inhaleFinished: state.inhaleFinished,
-      ));
-
-      if (!_armed && startedNow) _armed = true;
-
-      if (_armed &&
-          !_dropFailTriggered &&
-          inhaleProgress <= _dropToZeroThreshold) {
-        _dropFailTriggered = true;
-        _finishFail("Inhale dropped to 0");
-        return;
-      }
-
-      if (_armed && !state.inhaleFinished) {
-        _applyBandRules(inhaleProgress);
+        break; // Buffer is empty or holds an incomplete packet
       }
     });
+  }
+
+  void _processInhalePacket(double inhaleValue) {
+    if (state.inhaleFailed || state.inhaleFinished) return;
+
+    _packetCount++;
+    if (_packetCount <= 8 || _packetCount % 25 == 0) {
+      d("pkt=$_packetCount raw=$inhaleValue base=$_base");
+    }
+
+    // 🚨 UPDATED RULE: Match main test (+1.5 tolerance for inhale)
+    if (inhaleValue > _base + 1.5) {
+      unawaited(_setCancelOrDisconnectFlag());
+      _finishFail("Exhale detected instead of inhale");
+      return;
+    }
+
+    final signed = Thresholds.calculateInhalePercentage(
+      _base,
+      inhaleValue,
+      breathingSettings.inhale.threshold.toDouble(),
+    );
+
+    final inhaleProgress = signed < 0 ? (-signed) : 0.0;
+    final startedNow = inhaleProgress >= _armAt;
+
+    emit(state.copyWith(
+      progressSigned: signed,
+      progress: startedNow ? inhaleProgress : 0,
+      inhaleStarted: startedNow ? true : state.inhaleStarted,
+      inhaleFinished: state.inhaleFinished,
+    ));
+
+    if (!_armed && startedNow) _armed = true;
+
+    if (_armed &&
+        !_dropFailTriggered &&
+        inhaleProgress <= _dropToZeroThreshold) {
+      _dropFailTriggered = true;
+      _finishFail("Inhale dropped to 0");
+      return;
+    }
+
+    if (_armed && !state.inhaleFinished) {
+      _applyBandRules(inhaleProgress);
+    }
   }
 
   void _startInhaleHandshake() {
@@ -256,7 +271,6 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
   void restartAfterFailWithPercent() {
     if (_disposed || _cancelled) return;
-    // 🚨 THE FIX: If disconnected, force the UI to navigate back to the practice menu
     if (!repo.isConnected) {
       d("Cannot restart. Device disconnected. Forcing exit.");
       emit(state.copyWith(navigateBack: true));
@@ -511,7 +525,6 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
       inhaleFinished: true,
       inhaleSuccess: true,
       inhaleFailed: false,
-      // 🚨 NEW: Pass the warning string to the UI if the battery died during the test
       inhaleFailReason:
           _lowBatteryDetectedDuringTest ? "POST_TEST_LOW_BATTERY" : "",
       inhaleNeedRunning: false,
@@ -590,10 +603,11 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
     _inhaleNeedAccumulated = Duration.zero;
     _inhaleNeedLastTickAt = null;
     _dropFailTriggered = false;
-    _lowBatteryDetectedDuringTest = false; // 🚨 NEW: Reset the flag on retries
+    _lowBatteryDetectedDuringTest = false;
     _pauseInhaleNeedTicker(setRunningFalse: false);
     _cancelOutOfBandFailTimer();
     _packetCount = 0;
+    _incomingBuffer = ""; // 🚨 Reset accumulator
   }
 
   void _resetForFreshStart() {
@@ -652,7 +666,6 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
     if (repo.isConnected && !state.inhaleFailed) {
       try {
-        // repo.sendData("&");
         repo.sendData("2");
       } catch (e) {
         emit(state.copyWith(error: e.toString()));
@@ -661,7 +674,6 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
     if (!state.startCounterFinished) {
       try {
-        // repo.sendData("&");
         repo.sendData("&");
       } catch (e) {
         emit(state.copyWith(error: e.toString()));

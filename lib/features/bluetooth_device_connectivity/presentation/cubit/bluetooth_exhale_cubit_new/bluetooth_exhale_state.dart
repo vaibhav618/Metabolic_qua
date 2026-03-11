@@ -79,21 +79,21 @@ class BluetoothExhaleState extends Equatable {
 
   @override
   List<Object?> get props => [
-    isConnected,
-    receivedData,
-    error,
-    progress,
-    exhaleStarted,
-    inRange,
-    holdSecondsLeft,
-    exhaleSuccess,
-    exhaleFailed,
-    analysisReady,
-    blowValues,
-    inRangeDurationMs,
-    navigateToDashboard,
-    cancelTest,
-    startTimeoutRunning,
-    startTimeoutLeftSec,
-  ];
+        isConnected,
+        receivedData,
+        error,
+        progress,
+        exhaleStarted,
+        inRange,
+        holdSecondsLeft,
+        exhaleSuccess,
+        exhaleFailed,
+        analysisReady,
+        blowValues,
+        inRangeDurationMs,
+        navigateToDashboard,
+        cancelTest,
+        startTimeoutRunning,
+        startTimeoutLeftSec,
+      ];
 }

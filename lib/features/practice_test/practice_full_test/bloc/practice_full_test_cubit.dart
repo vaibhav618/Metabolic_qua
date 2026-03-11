@@ -27,11 +27,17 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
   bool _flowStopped = false;
   bool _testStarted = false;
 
-  // 🚨 NEW: Flag to silently track low battery during an active test
+  // 🚨 NEW: ACCUMULATOR & SMOOTHING VARS
+  String _incomingBuffer = "";
+  double _lastEmittedProgress = -1.0;
+  double _smoothedProgress = 0.0;
+  bool _breathDetectedInPhase = false;
+
   bool _batteryDiedDuringTest = false;
 
-  final RegExp _slashNum = RegExp(r'^\s*/\s*(\d+(?:\.\d+)?)\s*/\s*$');
-  final RegExp _curlyNum = RegExp(r'^\s*\{\s*(\d+(?:\.\d+)?)\s*\}\s*$');
+  // 🚨 UPDATED REGEX: Unanchored for buffer parsing
+  final RegExp _slashNum = RegExp(r'/\s*(\d+(?:\.\d+)?)\s*/');
+  final RegExp _curlyNum = RegExp(r'\{\s*(\d+(?:\.\d+)?)\s*\}');
 
   bool _baseCaptured = false;
   double _base = 0;
@@ -61,7 +67,6 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
   Timer? _postExitTimer;
   bool _exitSent = false;
 
-  // 🚨 ADDED: Track when the hold phase started to give a 1-second grace period
   DateTime? _holdStartAt;
   static const Duration _holdStartCheckingAfter = Duration(seconds: 1);
 
@@ -95,6 +100,14 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     return need - const Duration(milliseconds: 500);
   }
 
+  // 🚨 RE-ADDED MISSING GETTER
+  bool get _canSaveAbortTime =>
+      _testStarted ||
+      state.phase == FullTestPhase.inhaleCountdown ||
+      state.phase == FullTestPhase.exhaleCountdown ||
+      _waitingHandshakeAck ||
+      _waitingPercentAck;
+
   void _listen() {
     _connSub = repo.connectionStatusStream().listen((connected) async {
       if (_disposed) return;
@@ -110,36 +123,33 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       if (_disposed || _flowStopped) return;
       if (!repo.isConnected || data.isEmpty) return;
 
-      final clean = data.trim();
-      if (clean.isEmpty) return;
+      // 🚨 ACCUMULATOR
+      _incomingBuffer += data;
 
-      // 🚨 SILENT CATCH: Note the low battery, but DO NOT return or fail.
-      // Let the code continue so the test can finish on backup power.
-      if (clean.contains("ERROR") && clean.contains("003")) {
+      if (_incomingBuffer.contains("ERROR") &&
+          _incomingBuffer.contains("003")) {
         _batteryDiedDuringTest = true;
-        return; // Ignore this specific packet so Regex doesn't break
+        _incomingBuffer =
+            _incomingBuffer.replaceAll(RegExp(r'ERROR\s*003'), '');
       }
 
-      // Only print raw packets occasionally to keep logs clean, but always print text commands
-      final isRawData = _slashNum.hasMatch(clean) || _curlyNum.hasMatch(clean);
-      if (!isRawData) d("Data received: '$clean'");
-
-      final lower = clean.toLowerCase();
+      final lower = _incomingBuffer.toLowerCase();
 
       // 1) RETRY CHECK (%)
-      if (_waitingPercentAck) {
-        if (clean == "%" || isRawData) {
-          d("Reset confirmed. Restarting flow with (|).");
-          _waitingPercentAck = false;
-          _stopTimers();
-          _startFullTestHandshake();
-        }
+      if (_waitingPercentAck && _incomingBuffer.contains("%")) {
+        d("Reset confirmed. Restarting flow with (|).");
+        _waitingPercentAck = false;
+        _stopTimers();
+        _startFullTestHandshake();
+        _incomingBuffer = "";
         return;
       }
 
-      // 2) HANDSHAKE (|) -> Wait for 'inhale' OR Auto-Start on raw data
+      // 2) HANDSHAKE (|)
       if (_waitingHandshakeAck && state.phase == FullTestPhase.initial) {
-        if (lower.contains("inhale") || isRawData) {
+        if (lower.contains("inhale") ||
+            _slashNum.hasMatch(_incomingBuffer) ||
+            _curlyNum.hasMatch(_incomingBuffer)) {
           d("Handshake OK. Sending '1' to start inhale stream.");
           _waitingHandshakeAck = false;
           _stopTimers();
@@ -148,82 +158,81 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
             countdownPhase: FullTestPhase.inhaleCountdown,
             nextPhase: FullTestPhase.inhaling,
             from: 5,
-            resetBase: true, // 🚨 Capture a fresh baseline at test start
+            resetBase: true,
           );
-          return;
         }
       }
 
-// 3) TRANSITION -> Wait for hardware prompt OR Auto-Start on raw data
+      // 3) TRANSITION
       if (state.phase == FullTestPhase.transitioning) {
         if (lower.contains("blow") ||
             lower.contains("exhale") ||
-            clean == "3" ||
-            isRawData) {
+            _incomingBuffer.contains("3") ||
+            _curlyNum.hasMatch(_incomingBuffer) ||
+            _slashNum.hasMatch(_incomingBuffer)) {
           d("Device Ready for Exhale. Sending '3' to start stream.");
           if (repo.isConnected) repo.sendData("3");
           startCounter(
             countdownPhase: FullTestPhase.exhaleCountdown,
             nextPhase: FullTestPhase.exhaling,
             from: 8,
-            resetBase: false, // 🚨 KEEP the same baseline for the Hold phase!
+            resetBase: false,
           );
-          return;
         }
       }
 
-      // ---------------------------------------------------------
-      // THE FIX: THE DATA DAM
-      // If we are currently counting down (Inhale prep), ignore data.
-      // 🚨 EXCEPTION: We ALLOW data during 'exhaleCountdown' because that is our 8-second Hold Phase!
       if (!_testStarted && state.phase != FullTestPhase.exhaleCountdown) return;
-      // ---------------------------------------------------------
 
-      final slashMatch = _slashNum.firstMatch(clean);
-      final curlyMatch = _curlyNum.firstMatch(clean);
-
-      // 4) BASE CAPTURE (Only happens the moment the timer hits 0)
-      if (!_baseCaptured) {
-        if (slashMatch != null) {
-          _base = double.parse(slashMatch.group(1)!);
-          _baseCaptured = true;
-          d("Captured Fresh Base (slash): $_base for ${state.phase.name}");
-          return;
-        } else if (curlyMatch != null) {
-          _base = double.parse(curlyMatch.group(1)!);
-          _baseCaptured = true;
-          d("Captured Fresh Base (curly fallback): $_base for ${state.phase.name}");
-          return;
+      // 🚨 PROCESS ACCUMULATED DATA PACKETS
+      while (true) {
+        // Base Capture
+        if (!_baseCaptured) {
+          final m = _slashNum.firstMatch(_incomingBuffer);
+          if (m != null) {
+            final val = double.tryParse(m.group(1)!);
+            if (val != null && val >= 700 && val <= 1150) {
+              _base = val;
+              _baseCaptured = true;
+              d("Captured Base: $_base for ${state.phase.name}");
+            }
+            _incomingBuffer = _incomingBuffer.substring(m.end);
+            continue;
+          }
         }
-      }
 
-      // 5) DATA PROCESSING ({})
-      if (!_baseCaptured || curlyMatch == null) return;
+        // Pressure Packets
+        final m = _curlyNum.firstMatch(_incomingBuffer);
+        if (m != null) {
+          final val = double.tryParse(m.group(1)!);
+          if (val != null && val >= 700 && val <= 1150) {
+            _handlePressureData(val);
+          }
+          _incomingBuffer = _incomingBuffer.substring(m.end);
+          continue;
+        }
 
-      final value = double.parse(curlyMatch.group(1)!);
-
-      if (state.phase == FullTestPhase.inhaling) {
-        _processInhaleData(value);
-      } else if (state.phase == FullTestPhase.exhaling) {
-        _processExhaleData(value);
-      } else if (state.phase == FullTestPhase.exhaleCountdown) {
-        // 🚨 Target the hold phase!
-        _processHoldData(value);
+        break;
       }
     });
   }
 
-  // 🚨 ADDED: Cloned directly from main test hold logic with grace periods
+  void _handlePressureData(double value) {
+    if (state.phase == FullTestPhase.inhaling) {
+      _processInhaleData(value);
+    } else if (state.phase == FullTestPhase.exhaling) {
+      _processExhaleData(value);
+    } else if (state.phase == FullTestPhase.exhaleCountdown) {
+      _processHoldData(value);
+    }
+  }
+
   void _processHoldData(double value) {
     final holdStart = _holdStartAt;
     if (holdStart == null) return;
 
     final elapsedHold = DateTime.now().difference(holdStart);
-
-    // Give them a 1.5 second grace period to let the ball drop back to 0
     if (elapsedHold < const Duration(milliseconds: 1500)) return;
 
-    // Tolerance relaxed slightly to 2.5 to avoid false positives from natural sensor drift
     if (value > (_base + 2.5)) {
       _finishFail("Exhale detected during hold");
       return;
@@ -235,7 +244,6 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     }
   }
 
-  // 🚨 REWRITTEN: Exact clone of standalone Inhale logic
   void _processInhaleData(double value) {
     if (value > _base + 1.5) {
       _finishFail("Exhale detected instead of inhale");
@@ -248,7 +256,19 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       breathingSettings.inhale.threshold.toDouble(),
     );
 
-    final inhaleProgress = signed < 0 ? (-signed) : 0.0;
+    double rawProgress = signed < 0 ? (-signed) : 0.0;
+
+    // FAST SYMMETRIC SMOOTHING
+    const double alpha = 0.80;
+    if (_lastEmittedProgress < 0) {
+      _smoothedProgress = rawProgress;
+    } else {
+      _smoothedProgress =
+          (rawProgress * alpha) + (_smoothedProgress * (1.0 - alpha));
+    }
+    _lastEmittedProgress = _smoothedProgress;
+
+    final inhaleProgress = _smoothedProgress >= 0 ? _smoothedProgress : 0.0;
     final startedNow = inhaleProgress >= _armAt;
 
     emit(state.copyWith(
@@ -271,10 +291,19 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     }
   }
 
-  // 🚨 REWRITTEN: Exact clone of standalone Exhale logic
   void _processExhaleData(double value) {
+    // Noise Gate Detection
+    if (!_breathDetectedInPhase && value > _base + 0.5) {
+      _breathDetectedInPhase = true;
+    }
+
     if (value < _base - 1.5) {
       _finishFail("Inhale detected instead of exhale");
+      return;
+    }
+
+    if (_breathDetectedInPhase && value <= _base + 0.5) {
+      _finishFail("Exhale failed: you stopped exhaling.");
       return;
     }
 
@@ -284,7 +313,20 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       breathingSettings.exhale.threshold.toDouble(),
     );
 
-    final exhaleProgress = signed > 0 ? signed : 0.0;
+    double rawProgress = signed > 0 ? signed : 0.0;
+    if (!_breathDetectedInPhase) rawProgress = 0.0;
+
+    // FAST SYMMETRIC SMOOTHING
+    const double alpha = 0.80;
+    if (_lastEmittedProgress < 0) {
+      _smoothedProgress = rawProgress;
+    } else {
+      _smoothedProgress =
+          (rawProgress * alpha) + (_smoothedProgress * (1.0 - alpha));
+    }
+    _lastEmittedProgress = _smoothedProgress;
+
+    final exhaleProgress = _smoothedProgress > 0 ? _smoothedProgress : 0.0;
     final startedNow = exhaleProgress >= _armAt;
 
     emit(state.copyWith(
@@ -351,17 +393,14 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     _pauseNeedTicker();
     _secondTimer?.cancel();
 
-    // Reset everything
-    _resetPhaseTracking(
-        resetBase: true); // 🚨 Wipe base completely on a fresh restart
-    _batteryDiedDuringTest = false; // 🚨 Reset flag on retries
+    _resetPhaseTracking(resetBase: true);
+    _batteryDiedDuringTest = false;
     _flowStopped = false;
     _waitingHandshakeAck = false;
     _testStarted = false;
     _exitSent = false;
     _holdStartAt = null;
 
-    // Ensure Cubit drops all stale data and waits for confirmation
     _waitingPercentAck = true;
 
     emit(const PracticeFullTestState());
@@ -399,15 +438,13 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     required FullTestPhase countdownPhase,
     required FullTestPhase nextPhase,
     int from = 5,
-    bool resetBase = false, // 🚨 Added to control the baseline
+    bool resetBase = false,
   }) {
     if (_disposed) return;
 
-    // Crucial: Clear the base so we capture a fresh one when timer hits 0
     _resetPhaseTracking(resetBase: resetBase);
     _testStarted = false;
 
-    // 🚨 Mark the exact time the hold phase starts
     if (countdownPhase == FullTestPhase.exhaleCountdown) {
       _holdStartAt = DateTime.now();
     }
@@ -487,7 +524,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     if (state.phase == FullTestPhase.inhaling) {
       d("Inhale Passed! Sending '2' (Hold).");
       if (repo.isConnected) repo.sendData("2");
-      _resetPhaseTracking(resetBase: false); // 🚨 Keep base for the hold phase!
+      _resetPhaseTracking(resetBase: false);
       emit(state.copyWith(phase: FullTestPhase.transitioning));
     } else if (state.phase == FullTestPhase.exhaling) {
       d("Exhale Passed! Sending Exit sequence (/) and (%).");
@@ -539,7 +576,6 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       failReason: reason,
     ));
 
-    // Force stream closure on failure
     if (repo.isConnected) {
       try {
         repo.sendData("&");
@@ -547,13 +583,18 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     }
   }
 
-  // 🚨 Modified to let us keep the baseline between phases
   void _resetPhaseTracking({bool resetBase = false}) {
     _armed = false;
     _everReachedBand = false;
     _needAccumulated = Duration.zero;
     _needLastTickAt = null;
     _dropFailTriggered = false;
+
+    // 🚨 RESET NEW VARS
+    _lastEmittedProgress = -1.0;
+    _smoothedProgress = 0.0;
+    _breathDetectedInPhase = false;
+    _incomingBuffer = "";
 
     if (resetBase) {
       _baseCaptured = false;
@@ -587,6 +628,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
   }
 
   Future<void> cancelTest() async {
+    if (_canSaveAbortTime) await _setCancelOrDisconnectFlag();
     if (_disposed || _flowStopped) return;
     d("User clicked Close: Aggressive Cleanup Starting.");
 
@@ -612,6 +654,14 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     }
 
     emit(state.copyWith(navigateBack: true));
+  }
+
+  Future<void> _setCancelOrDisconnectFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'cancel_or_disconnect_time',
+      DateTime.now().toIso8601String(),
+    );
   }
 
   @override
