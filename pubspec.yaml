@@ -39,7 +39,7 @@ dependencies:
   animated_text_kit: ^4.3.0
   dotted_border: ^2.1.0
   loading_animation_widget: ^1.3.0
-  flutter_inner_shadow: 0.0.1
+  flutter_inner_shadow: ^0.0.1
   flutter_inset_box_shadow: ^1.0.8
   simple_horizontal_calendar: ^0.0.2
   sliding_action_button: ^0.0.7

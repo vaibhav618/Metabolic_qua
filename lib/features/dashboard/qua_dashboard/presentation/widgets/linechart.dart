@@ -68,7 +68,6 @@ class _MetabolismChartContainerState extends State<MetabolismChartContainer> {
           }
 
           if (state is MetabolismLoaded) {
-            // ✅ FIX: call parent AFTER build finishes
             WidgetsBinding.instance.addPostFrameCallback((_) {
               widget.noDataAvailable(false);
             });
@@ -81,12 +80,10 @@ class _MetabolismChartContainerState extends State<MetabolismChartContainer> {
           }
 
           if (state is MetabolismError) {
-            // ✅ FIX: call parent AFTER build finishes
             WidgetsBinding.instance.addPostFrameCallback((_) {
               widget.noDataAvailable(true);
             });
 
-            // Return something in error state
             return const SizedBox(height: 220);
           }
 
@@ -115,7 +112,7 @@ class ScoreLineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final List<MetabolismScore> displayData =
-    data.length > 7 ? data.sublist(data.length - 7) : data;
+        data.length > 7 ? data.sublist(data.length - 7) : data;
 
     const double maxX = 6.0;
 
@@ -148,8 +145,6 @@ class ScoreLineChart extends StatelessWidget {
             ),
           ),
           borderData: FlBorderData(show: false),
-
-          // ✅ TOOLTIP + TOUCH DESIGN ADDED
           lineTouchData: LineTouchData(
             enabled: true,
             handleBuiltInTouches: true,
@@ -164,7 +159,8 @@ class ScoreLineChart extends StatelessWidget {
                   ),
                   FlDotData(
                     show: true,
-                    getDotPainter: (spot, percent, bar, idx) => FlDotCirclePainter(
+                    getDotPainter: (spot, percent, bar, idx) =>
+                        FlDotCirclePainter(
                       radius: 4,
                       color: const Color(0xFF308BF9),
                       strokeWidth: 2,
@@ -176,7 +172,8 @@ class ScoreLineChart extends StatelessWidget {
             },
             touchTooltipData: LineTouchTooltipData(
               tooltipRoundedRadius: 10,
-              tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              tooltipPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               tooltipMargin: 12,
               fitInsideHorizontally: true,
               fitInsideVertically: true,
@@ -184,7 +181,6 @@ class ScoreLineChart extends StatelessWidget {
                 color: const Color(0xFF308BF9).withOpacity(0.25),
                 width: 1,
               ),
-
               getTooltipColor: (touchedSpot) => Colors.black.withOpacity(0.85),
               getTooltipItems: (touchedSpots) {
                 return touchedSpots.map((t) {
@@ -196,7 +192,9 @@ class ScoreLineChart extends StatelessWidget {
                     dateLabel = DateFormat("dd MMM").format(dt);
                   }
 
-                  final score = t.y.toStringAsFixed(0);
+                  // 🚨 FIX: Changed from .toStringAsFixed(0) to .toInt().toString()
+                  // This forces strict truncation (69.8 becomes 69)
+                  final score = t.y.toInt().toString();
 
                   return LineTooltipItem(
                     "$score%\n",
@@ -220,7 +218,6 @@ class ScoreLineChart extends StatelessWidget {
               },
             ),
           ),
-
           titlesData: FlTitlesData(
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
@@ -228,6 +225,7 @@ class ScoreLineChart extends StatelessWidget {
                 interval: 20,
                 reservedSize: 32,
                 getTitlesWidget: (value, _) => Text(
+                  // 🚨 FIX: Applied to Y-axis titles just in case, though they are usually flat 20s
                   value.toInt().toString(),
                   style: GoogleFonts.poppins(
                     color: const Color(0xFFA1A1A1),
@@ -254,14 +252,16 @@ class ScoreLineChart extends StatelessWidget {
                 },
               ),
             ),
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles:
+                const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           ),
           lineBarsData: [
             LineChartBarData(
               spots: List.generate(
                 displayData.length,
-                    (i) => FlSpot(i.toDouble(), displayData[i].score),
+                (i) => FlSpot(i.toDouble(), displayData[i].score),
               ),
               isCurved: false,
               barWidth: 2,
@@ -275,7 +275,6 @@ class ScoreLineChart extends StatelessWidget {
         ),
       ),
     );
-
   }
 
   Widget _dateTitle(String day, String month) {

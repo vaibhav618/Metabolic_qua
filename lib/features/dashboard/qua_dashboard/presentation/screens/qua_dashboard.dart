@@ -574,7 +574,10 @@ class _ScoreDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final num score = fatLossScore.score ?? 0;
+    final num rawScore = fatLossScore.score ?? 0;
+
+    // 🚨 FIX: Force the score to truncate (floor) so 69.8 becomes 69!
+    final int displayScore = rawScore.toInt();
 
     return Column(
       children: [
@@ -593,7 +596,7 @@ class _ScoreDisplay extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: [
             Text(
-              score.toDouble().toStringAsFixed(0),
+              displayScore.toString(), // 🚨 Passed the truncated score here
               style: GoogleFonts.poppins(
                 color: Colors.white,
                 fontSize: rh(context: context, px: 100),

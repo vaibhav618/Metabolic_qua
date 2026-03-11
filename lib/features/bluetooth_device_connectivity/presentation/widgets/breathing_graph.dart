@@ -90,39 +90,55 @@ class _BreathingTargetGraphState extends State<BreathingTargetGraph> {
   }
 
   Widget _buildGraphView() {
-    return CustomPaint(
-      key: const ValueKey("graph_view"),
-      size: Size(_dynamicWidth, widget.height),
-
-      // ✅ repaint is driven by reading notifier (no rebuild needed)
-      painter: _GraphPainter(
-        repaint: widget.reading,
-        min: widget.min,
-        max: widget.max,
-        targetMin: widget.targetMin,
-        targetMax: widget.targetMax,
-      ),
+    // 🚨 THE FIX: We wrap the raw data in a TweenAnimationBuilder!
+    // This forces Flutter to draw the missing 120Hz frames between BLE packets.
+    return ValueListenableBuilder<double>(
+      valueListenable: widget.reading,
+      builder: (context, targetValue, child) {
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: targetValue, end: targetValue),
+          duration: const Duration(
+              milliseconds: 120), // Glides perfectly between 20Hz BLE packets
+          curve: Curves
+              .easeOutCubic, // Adds a tiny deceleration for a fluid, natural feel
+          builder: (context, animatedValue, child) {
+            return CustomPaint(
+              key: const ValueKey("graph_view"),
+              size: Size(_dynamicWidth, widget.height),
+              painter: _GraphPainter(
+                currentValue:
+                    animatedValue, // We pass the animated 120FPS double to the painter
+                min: widget.min,
+                max: widget.max,
+                targetMin: widget.targetMin,
+                targetMax: widget.targetMax,
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
 
 class _GraphPainter extends CustomPainter {
   final double min, max, targetMin, targetMax;
-  final ValueListenable<double> repaint;
+  final double
+      currentValue; // No longer a listener, just a fast-updating double!
 
   _GraphPainter({
-    required this.repaint,
+    required this.currentValue,
     required this.min,
     required this.max,
     required this.targetMin,
     required this.targetMax,
-  }) : super(repaint: repaint);
+  });
 
   bool _isInSuccessZone(double val) => val >= targetMin && val <= targetMax;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final value = repaint.value;
+    final value = currentValue;
     final isInRange = _isInSuccessZone(value);
 
     _drawTargetMarkers(canvas, size, targetMin);
@@ -180,9 +196,9 @@ class _GraphPainter extends CustomPainter {
     final double yPos = maxY - (normalizedVal * (maxY - minY));
 
     final Color baseColor =
-    isInRange ? const Color(0xFF3EAF58) : const Color(0xFF308BF9);
+        isInRange ? const Color(0xFF3EAF58) : const Color(0xFF308BF9);
     final Color lightColor =
-    isInRange ? const Color(0xFFA9F7BA) : const Color(0xFF8EC1FF);
+        isInRange ? const Color(0xFFA9F7BA) : const Color(0xFF8EC1FF);
 
     canvas.drawCircle(
       Offset(size.width / 2, yPos),
@@ -202,5 +218,8 @@ class _GraphPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _GraphPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GraphPainter oldDelegate) {
+    // Only repaint if the animated double actually changed
+    return oldDelegate.currentValue != currentValue;
+  }
 }

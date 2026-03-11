@@ -1,12 +1,21 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../models/graph_model.dart';
+import '../models/graph_model.dart'; // Adjust path if needed
 
 class ProgressGraph extends StatelessWidget {
   final List<GraphModel> data;
 
-  const ProgressGraph({super.key, required this.data});
+  // 🚨 NEW: Added dynamic ranges from the API!
+  final double minRange;
+  final double maxRange;
+
+  const ProgressGraph({
+    super.key,
+    required this.data,
+    required this.minRange,
+    required this.maxRange,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -15,36 +24,49 @@ class ProgressGraph extends StatelessWidget {
     }
 
     double maxDataValue = data.map((e) => e.value).reduce(max);
-    double calculatedMaxY = (maxDataValue > 100) ? maxDataValue * 1.2 : 105;
+    // 🚨 FIX: Ensure the graph Y-axis scales high enough to show the maxRange line even if the score is lower
+    double highestPoint = max(maxDataValue, maxRange);
+    double calculatedMaxY = (highestPoint > 100) ? highestPoint * 1.2 : 105;
 
     return LineChart(
       LineChartData(
-        // CHANGED: Increased maxX from 6.2 to 6.5 so the final dot doesn't hit the right wall
         minX: 0,
         maxX: 6.5,
-
         minY: 0,
         maxY: calculatedMaxY,
+
+        // 🚨 FIX: ExtraLinesData forces lines to draw exactly at minRange and maxRange, bypassing the grid interval math!
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            HorizontalLine(
+              y: minRange,
+              color: const Color.fromARGB(255, 161, 161, 161),
+              strokeWidth: 1,
+              dashArray: [12, 20],
+              label: HorizontalLineLabel(show: false),
+            ),
+            HorizontalLine(
+              y: maxRange,
+              color: const Color.fromARGB(255, 161, 161, 161),
+              strokeWidth: 1,
+              dashArray: [12, 20],
+              label: HorizontalLineLabel(show: false),
+            ),
+          ],
+        ),
 
         gridData: FlGridData(
           show: true,
           drawVerticalLine: true,
-          drawHorizontalLine: true,
-          horizontalInterval: 5,
+          drawHorizontalLine:
+              false, // 🚨 Turned off default horizontal grid so ONLY our ExtraLines show
           verticalInterval: 1,
-          checkToShowHorizontalLine: (value) => value == 60 || value == 90,
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: const Color.fromARGB(255, 161, 161, 161),
-            dashArray: [12, 20],
-            strokeWidth: 1,
-          ),
           getDrawingVerticalLine: (value) => FlLine(
             color: const Color.fromARGB(255, 217, 217, 217),
             dashArray: [6, 6],
             strokeWidth: 1,
           ),
         ),
-
         titlesData: FlTitlesData(
           topTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
@@ -52,7 +74,6 @@ class ProgressGraph extends StatelessWidget {
           rightTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
           ),
-
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -73,21 +94,18 @@ class ProgressGraph extends StatelessWidget {
               },
             ),
           ),
-
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               interval: 1,
               reservedSize: 35,
               getTitlesWidget: (value, meta) {
-                // Ignore non-integer values
                 if (value % 1 != 0) {
                   return const SizedBox.shrink();
                 }
 
                 final index = value.toInt();
 
-                // Safety Check: Only indices 0-6 allowed
                 if (index > 6) return const SizedBox.shrink();
 
                 DateTime date;
@@ -115,7 +133,6 @@ class ProgressGraph extends StatelessWidget {
             ),
           ),
         ),
-
         borderData: FlBorderData(
           show: true,
           border: const Border(
@@ -129,7 +146,6 @@ class ProgressGraph extends StatelessWidget {
             ),
           ),
         ),
-
         lineBarsData: [
           LineChartBarData(
             spots: data.asMap().entries.map((entry) {
@@ -141,12 +157,8 @@ class ProgressGraph extends StatelessWidget {
               show: true,
               gradient: LinearGradient(
                 colors: [
-                  const Color.fromARGB(
-                    255,
-                    48,
-                    173,
-                    249,
-                  ).withValues(alpha: 0.35),
+                  const Color.fromARGB(255, 48, 173, 249)
+                      .withValues(alpha: 0.35),
                   const Color.fromARGB(0, 48, 139, 249).withValues(alpha: 0),
                 ],
                 begin: Alignment.topCenter,
@@ -184,7 +196,7 @@ class ProgressGraph extends StatelessWidget {
       "Sep",
       "Oct",
       "Nov",
-      "Dec",
+      "Dec"
     ];
     return months[month - 1];
   }
