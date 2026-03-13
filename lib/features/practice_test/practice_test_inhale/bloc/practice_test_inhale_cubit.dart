@@ -24,6 +24,10 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
   Timer? _finishTimer;
   Timer? _secondTimer;
 
+  // 🚨 COMPATIBILITY LOGIC: Active Polling Variables
+  Timer? _compatibilityTimer;
+  int _compatibilityTicks = 0;
+
   bool _disposed = false;
   bool _startSent = false;
   bool _testStarted = false;
@@ -99,6 +103,13 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
       _waitingInhaleAck ||
       _waitingPercentAck;
 
+  // 🚨 COMPATIBILITY LOGIC: Cleanup helper
+  void _cancelCompatibilityTimer() {
+    _compatibilityTimer?.cancel();
+    _compatibilityTimer = null;
+    _compatibilityTicks = 0;
+  }
+
   void _listen() {
     _connSub = repo.connectionStatusStream().listen((connected) async {
       if (_disposed) return;
@@ -161,6 +172,9 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
           if (m != null) {
             final val = double.tryParse(m.group(1) ?? "");
             if (val != null && val >= 700 && val <= 1150) {
+              // 🚨 COMPATIBILITY LOGIC: Data received! Device is compatible. Kill polling.
+              _cancelCompatibilityTimer();
+
               _base = val;
               _baseCaptured = true;
               emit(state.copyWith(
@@ -176,6 +190,9 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
         if (m != null) {
           final val = double.tryParse(m.group(1) ?? "");
           if (val != null && val >= 700 && val <= 1150) {
+            // 🚨 COMPATIBILITY LOGIC: Data received! Device is compatible. Kill polling.
+            _cancelCompatibilityTimer();
+
             _processInhalePacket(val);
           }
           _incomingBuffer = _incomingBuffer.substring(m.end);
@@ -265,7 +282,8 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
       _stopInhaleAckTimers();
       _waitingInhaleAck = false;
-      _finishFail("No response from device. Please try again.");
+      // 🚨 COMPATIBILITY FLAG TRIGGER: Handshake failed, offer skip
+      _finishFail("No response from device. Please try again.", showSkip: true);
     });
   }
 
@@ -279,6 +297,7 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
     _flowStopped = false;
     _testStarted = false;
+    _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC: Reset polling
 
     emit(state.copyWith(
       inhaleFailed: false,
@@ -302,6 +321,7 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
       error: null,
       navigateBack: false,
       inhaleStarted: false,
+      showSkipButton: false, // 🚨 Reset compatibility flag
     ));
 
     _sendPercentAndWaitAck();
@@ -337,7 +357,8 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
       _waitingPercentAck = false;
       _stopPercentTimers();
-      emit(state.copyWith(error: "No response for % from device"));
+      // 🚨 COMPATIBILITY FLAG TRIGGER: Device ignored `%`
+      _finishFail("No response for % from device", showSkip: true);
     });
   }
 
@@ -348,6 +369,8 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
     _secondTimer?.cancel();
     _finishTimer = null;
     _secondTimer = null;
+
+    _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC
 
     _startSent = false;
     _testStarted = false;
@@ -387,6 +410,7 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
       baseValueReceived: false,
       blowExhaleBaseValue: 0,
       error: null,
+      showSkipButton: false, // 🚨 Reset compatibility flag
     ));
 
     _secondTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -419,13 +443,40 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
     if (!_deviceReadyForInhale) return;
 
     _startSent = true;
+    _testStarted = true;
 
-    try {
-      repo.sendData("1");
-      _testStarted = true;
-    } catch (e) {
-      emit(state.copyWith(error: e.toString()));
+    // 🚨 COMPATIBILITY LOGIC: Helper function to send stream command
+    void sendStreamCommand() {
+      if (_disposed || _cancelled || _flowStopped) return;
+      if (!repo.isConnected) return;
+      try {
+        repo.sendData("1");
+      } catch (e) {
+        emit(state.copyWith(error: e.toString()));
+      }
     }
+
+    // 🚨 COMPATIBILITY LOGIC: Send initial command
+    sendStreamCommand();
+
+    // 🚨 COMPATIBILITY LOGIC: Active Polling Timer
+    _cancelCompatibilityTimer();
+    _compatibilityTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      _compatibilityTicks++;
+
+      if (_compatibilityTicks >= 4) {
+        // 8 Seconds total
+        _cancelCompatibilityTimer();
+        d("Compatibility timeout: Device not streaming data. Showing skip button.");
+
+        // 🚨 COMPATIBILITY FLAG TRIGGER: Emit showSkipButton via _finishFail
+        _finishFail("Device is not streaming data. It may be incompatible.",
+            showSkip: true);
+      } else {
+        d("Compatibility ping $_compatibilityTicks: Resending '1'");
+        sendStreamCommand();
+      }
+    });
   }
 
   void _applyBandRules(double progressAbs) {
@@ -515,6 +566,7 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
     _flowStopped = true;
     _testStarted = false;
+    _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC
 
     _pauseInhaleNeedTicker(setRunningFalse: true);
     _cancelOutOfBandFailTimer();
@@ -535,11 +587,13 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
     if (repo.isConnected) repo.sendData("2");
   }
 
-  void _finishFail(String reason) {
+  // 🚨 UPDATED SIGNATURE: Accepts optional showSkip flag
+  void _finishFail(String reason, {bool showSkip = false}) {
     if (_disposed || _cancelled || state.inhaleFailed) return;
 
     _flowStopped = true;
     _testStarted = false;
+    _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC
 
     _finishTimer?.cancel();
     _secondTimer?.cancel();
@@ -560,6 +614,7 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
       inhaleSuccess: false,
       inhaleFailed: true,
       inhaleFailReason: reason,
+      showSkipButton: showSkip, // 🚨 Pass flag to state
       inhaleNeedRunning: false,
       inhaleNeedTotalMillis: _inhaleNeed.inMilliseconds,
       inhaleNeedEndsAtEpochMs:
@@ -574,6 +629,7 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
     _flowStopped = true;
     _testStarted = false;
+    _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC
 
     _finishTimer?.cancel();
     _secondTimer?.cancel();
@@ -606,6 +662,7 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
     _lowBatteryDetectedDuringTest = false;
     _pauseInhaleNeedTicker(setRunningFalse: false);
     _cancelOutOfBandFailTimer();
+    _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC
     _packetCount = 0;
     _incomingBuffer = ""; // 🚨 Reset accumulator
   }
@@ -656,6 +713,8 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
     _secondTimer?.cancel();
     _finishTimer = null;
     _secondTimer = null;
+
+    _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC
 
     _stopInhaleAckTimers();
     _stopPercentTimers();
@@ -714,6 +773,8 @@ class PracticeTestInhaleCubit extends Cubit<PracticeTestInhaleState> {
 
     _finishTimer?.cancel();
     _secondTimer?.cancel();
+
+    _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC
 
     _stopInhaleAckTimers();
     _stopPercentTimers();

@@ -23,6 +23,10 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
 
   Timer? _secondTimer;
 
+  // 🚨 COMPATIBILITY LOGIC: Active Polling Variables
+  Timer? _compatibilityTimer;
+  int _compatibilityTicks = 0;
+
   bool _disposed = false;
   bool _flowStopped = false;
   bool _testStarted = false;
@@ -108,6 +112,13 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       _waitingHandshakeAck ||
       _waitingPercentAck;
 
+  // 🚨 COMPATIBILITY LOGIC: Cleanup helper
+  void _cancelCompatibilityTimer() {
+    _compatibilityTimer?.cancel();
+    _compatibilityTimer = null;
+    _compatibilityTicks = 0;
+  }
+
   void _listen() {
     _connSub = repo.connectionStatusStream().listen((connected) async {
       if (_disposed) return;
@@ -151,6 +162,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
             _slashNum.hasMatch(_incomingBuffer) ||
             _curlyNum.hasMatch(_incomingBuffer)) {
           d("Handshake OK. Sending '1' to start inhale stream.");
+          _cancelCompatibilityTimer();
           _waitingHandshakeAck = false;
           _stopTimers();
           if (repo.isConnected) repo.sendData("1");
@@ -189,6 +201,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
         if (!_baseCaptured) {
           final m = _slashNum.firstMatch(_incomingBuffer);
           if (m != null) {
+            _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC: Data received!
             final val = double.tryParse(m.group(1)!);
             if (val != null && val >= 700 && val <= 1150) {
               _base = val;
@@ -203,6 +216,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
         // Pressure Packets
         final m = _curlyNum.firstMatch(_incomingBuffer);
         if (m != null) {
+          _cancelCompatibilityTimer(); // 🚨 COMPATIBILITY LOGIC: Data received!
           final val = double.tryParse(m.group(1)!);
           if (val != null && val >= 700 && val <= 1150) {
             _handlePressureData(val);
@@ -381,7 +395,8 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       if (_disposed || !_waitingHandshakeAck) return;
       _stopTimers();
       _waitingHandshakeAck = false;
-      _finishFail("Device not responding. Please try again.");
+      // 🚨 COMPATIBILITY FLAG TRIGGER: Offer skip
+      _finishFail("Device not responding. Please try again.", showSkip: true);
     });
   }
 
@@ -392,6 +407,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     _stopTimers();
     _pauseNeedTicker();
     _secondTimer?.cancel();
+    _cancelCompatibilityTimer();
 
     _resetPhaseTracking(resetBase: true);
     _batteryDiedDuringTest = false;
@@ -430,7 +446,8 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       if (_disposed || !_waitingPercentAck) return;
       _stopTimers();
       _waitingPercentAck = false;
-      _finishFail("Failed to reset device.");
+      // 🚨 COMPATIBILITY FLAG TRIGGER: Offer skip
+      _finishFail("Failed to reset device.", showSkip: true);
     });
   }
 
@@ -444,6 +461,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
 
     _resetPhaseTracking(resetBase: resetBase);
     _testStarted = false;
+    _cancelCompatibilityTimer();
 
     if (countdownPhase == FullTestPhase.exhaleCountdown) {
       _holdStartAt = DateTime.now();
@@ -457,6 +475,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
       startCounter: from,
       startCounterTotalMillis: totalMillis,
       startCounterEndsAtEpochMs: endsAt,
+      showSkipButton: false, // 🚨 Reset compatibility flag
     ));
 
     _secondTimer?.cancel();
@@ -469,6 +488,19 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
         _testStarted = true;
         d("Timer finished. Opening data dam for ${nextPhase.name}.");
         emit(state.copyWith(phase: nextPhase));
+
+        // 🚨 COMPATIBILITY LOGIC: Start Polling for stream data once counter finishes
+        _cancelCompatibilityTimer();
+        _compatibilityTimer = Timer.periodic(const Duration(seconds: 2), (t) {
+          _compatibilityTicks++;
+          if (_compatibilityTicks >= 4) {
+            _cancelCompatibilityTimer();
+            d("Stream Compatibility timeout: Device not sending packets. Showing skip.");
+            // 🚨 COMPATIBILITY FLAG TRIGGER: Offer skip
+            _finishFail("Device is not streaming data. It may be incompatible.",
+                showSkip: true);
+          }
+        });
       } else {
         emit(state.copyWith(startCounter: current));
       }
@@ -520,6 +552,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
   void _handlePhaseSuccess() {
     _pauseNeedTicker();
     _outOfBandTimer?.cancel();
+    _cancelCompatibilityTimer();
 
     if (state.phase == FullTestPhase.inhaling) {
       d("Inhale Passed! Sending '2' (Hold).");
@@ -562,7 +595,8 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     });
   }
 
-  void _finishFail(String reason) {
+  // 🚨 UPDATED SIGNATURE: Accepts optional showSkip flag
+  void _finishFail(String reason, {bool showSkip = false}) {
     if (_disposed || _flowStopped) return;
     d("Test Failed: $reason. Forcing Exit (&).");
 
@@ -570,10 +604,12 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     _testStarted = false;
     _stopTimers();
     _pauseNeedTicker();
+    _cancelCompatibilityTimer();
 
     emit(state.copyWith(
       isFailed: true,
       failReason: reason,
+      showSkipButton: showSkip, // 🚨 Pass flag to state
     ));
 
     if (repo.isConnected) {
@@ -603,6 +639,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
 
     _pauseNeedTicker();
     _outOfBandTimer?.cancel();
+    _cancelCompatibilityTimer();
     emit(state.copyWith(progress: 0, progressSigned: 0, inBandSeconds: 0));
   }
 
@@ -616,12 +653,14 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     _retryTimer?.cancel();
     _timeoutTimer?.cancel();
     _postExitTimer?.cancel();
+    _cancelCompatibilityTimer();
   }
 
   void stopFlow() {
     d("Forcing Full Test Flow to Stop");
     _flowStopped = true;
     _testStarted = false;
+    _cancelCompatibilityTimer();
     _dataSub?.cancel();
     _connSub?.cancel();
     _secondTimer?.cancel();
@@ -675,6 +714,7 @@ class PracticeFullTestCubit extends Cubit<PracticeFullTestState> {
     _needTicker?.cancel();
     _outOfBandTimer?.cancel();
     _secondTimer?.cancel();
+    _cancelCompatibilityTimer();
 
     _connSub?.cancel();
     _dataSub?.cancel();

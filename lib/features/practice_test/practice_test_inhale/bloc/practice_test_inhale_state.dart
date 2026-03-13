@@ -35,6 +35,9 @@ class PracticeTestInhaleState extends Equatable {
 
   final bool navigateBack;
 
+  // 🚨 NEW: Compatibility Timer Flag
+  final bool showSkipButton;
+
   const PracticeTestInhaleState({
     this.isConnected = false,
     this.receivedData = "",
@@ -60,6 +63,7 @@ class PracticeTestInhaleState extends Equatable {
     this.inhaleNeedStartsAtEpochMs = 0,
     this.inhaleNeedEndsAtEpochMs = 0,
     this.navigateBack = false,
+    this.showSkipButton = false, // 🚨 NEW
   });
 
   PracticeTestInhaleState copyWith({
@@ -87,6 +91,7 @@ class PracticeTestInhaleState extends Equatable {
     int? inhaleNeedStartsAtEpochMs,
     int? inhaleNeedEndsAtEpochMs,
     bool? navigateBack,
+    bool? showSkipButton, // 🚨 NEW
   }) {
     return PracticeTestInhaleState(
       isConnected: isConnected ?? this.isConnected,
@@ -118,6 +123,7 @@ class PracticeTestInhaleState extends Equatable {
       inhaleNeedEndsAtEpochMs:
           inhaleNeedEndsAtEpochMs ?? this.inhaleNeedEndsAtEpochMs,
       navigateBack: navigateBack ?? this.navigateBack,
+      showSkipButton: showSkipButton ?? this.showSkipButton, // 🚨 NEW
     );
   }
 
@@ -147,5 +153,6 @@ class PracticeTestInhaleState extends Equatable {
         inhaleNeedStartsAtEpochMs,
         inhaleNeedEndsAtEpochMs,
         navigateBack,
+        showSkipButton, // 🚨 NEW
       ];
 }

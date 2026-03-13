@@ -30,6 +30,9 @@ class PracticeFullTestState extends Equatable {
   final String failReason;
   final bool navigateBack;
 
+  // 🚨 NEW: Added to support the Incompatible Device Screen
+  final bool showSkipButton;
+
   const PracticeFullTestState({
     this.isConnected = false,
     this.phase = FullTestPhase.initial,
@@ -41,6 +44,7 @@ class PracticeFullTestState extends Equatable {
     this.isFailed = false,
     this.failReason = "",
     this.navigateBack = false,
+    this.showSkipButton = false, // Initialize
     this.startCounterEndsAtEpochMs = 0, // Initialize
     this.startCounterTotalMillis = 0, // Initialize
   });
@@ -56,6 +60,7 @@ class PracticeFullTestState extends Equatable {
     bool? isFailed,
     String? failReason,
     bool? navigateBack,
+    bool? showSkipButton,
     int? startCounterEndsAtEpochMs,
     int? startCounterTotalMillis,
   }) {
@@ -70,6 +75,7 @@ class PracticeFullTestState extends Equatable {
       isFailed: isFailed ?? this.isFailed,
       failReason: failReason ?? this.failReason,
       navigateBack: navigateBack ?? this.navigateBack,
+      showSkipButton: showSkipButton ?? this.showSkipButton,
       startCounterEndsAtEpochMs:
           startCounterEndsAtEpochMs ?? this.startCounterEndsAtEpochMs,
       startCounterTotalMillis:
@@ -89,6 +95,7 @@ class PracticeFullTestState extends Equatable {
         isFailed,
         failReason,
         navigateBack,
+        showSkipButton,
         startCounterEndsAtEpochMs,
         startCounterTotalMillis,
       ];

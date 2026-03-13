@@ -732,8 +732,9 @@ class _SwipeActionOverlay extends StatelessWidget {
           // 🚨 ADDED: Check if the currently selected date is today
           final isToday = DateUtils.isSameDay(selectedDate, DateTime.now());
 
-          // 🚨 HIDE IF: It is NOT today, OR a test has already been taken
-          if (!isToday || testState.result != null) {
+          // 🚨 UPDATED: Removed the `testState.result != null` check.
+          // Now it ONLY hides if the day is not today, allowing multiple tests!
+          if (!isToday) {
             return const SizedBox.shrink();
           }
 

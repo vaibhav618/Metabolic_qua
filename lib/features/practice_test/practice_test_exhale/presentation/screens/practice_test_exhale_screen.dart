@@ -46,6 +46,13 @@ class _PracticeTestExhaleView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocListener<PracticeTestExhaleCubit, PracticeTestExhaleState>(
+      listenWhen: (p, c) =>
+          p.isConnected != c.isConnected ||
+          p.error != c.error ||
+          p.exhaleFailed != c.exhaleFailed ||
+          p.exhaleSuccess != c.exhaleSuccess ||
+          p.navigateBack != c.navigateBack ||
+          p.exhaleSuccess != c.exhaleSuccess,
       listener: (context, state) {
         // if (!state.isConnected) {
         //   _showSnack(context, "Device disconnected");
@@ -65,6 +72,14 @@ class _PracticeTestExhaleView extends StatelessWidget {
         }
       },
       child: BlocBuilder<PracticeTestExhaleCubit, PracticeTestExhaleState>(
+        buildWhen: (p, c) =>
+            p.startCounterStarted != c.startCounterStarted ||
+            p.startCounterFinished != c.startCounterFinished ||
+            p.exhaleStarted != c.exhaleStarted ||
+            p.exhaleFinished != c.exhaleFinished ||
+            p.exhaleFailed != c.exhaleFailed ||
+            p.progress != c.progress ||
+            p.showSkipButton != c.showSkipButton, // 🚨 Listen for Skip Button
         builder: (context, state) {
           return Scaffold(
             backgroundColor: Colors.white,
@@ -92,6 +107,14 @@ class _PracticeTestExhaleView extends StatelessWidget {
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
                 child: _BuildView(
+                  key: ValueKey(
+                    "${state.startCounterStarted}-"
+                    "${state.startCounterFinished}-"
+                    "${state.exhaleStarted}-"
+                    "${state.exhaleFinished}-"
+                    "${state.exhaleFailed}-"
+                    "${state.showSkipButton}", // 🚨 Include in key to force rebuild
+                  ),
                   state: state,
                   settings: params.breathingSettings,
                   params: params, // 🚨 Pass params down to BuildView
@@ -117,6 +140,7 @@ class _BuildView extends StatelessWidget {
   final PracticeTestExhaleParams params; // 🚨 Accept params
 
   const _BuildView({
+    super.key,
     required this.state,
     required this.settings,
     required this.params,
@@ -124,6 +148,36 @@ class _BuildView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🚨 ADDED: Check for compatibility timeout first
+    if (state.showSkipButton) {
+      return IncompatibleDeviceScreen(
+        errorText: state.exhaleFailReason,
+        onRetry: () {
+          final isConnected = context.read<BluetoothRepository>().isConnected;
+          if (isConnected) {
+            context
+                .read<PracticeTestExhaleCubit>()
+                .restartAfterFailWithPercent();
+          } else {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(AppRoutes.practiceFlowShell,
+                  extra: params.clientProfileModel);
+            }
+          }
+        },
+        onSkip: () {
+          // 🚨 FIX: Abort the test entirely and go straight to Dashboard
+          context.read<PracticeTestExhaleCubit>().cancelTest();
+          context.go(
+            AppRoutes.clientDashboard,
+            extra: params.clientProfileModel,
+          );
+        },
+      );
+    }
+
     // 🚨 MOVED TO TOP: Failure/Disconnect logic now overrides the timer
     if (state.exhaleFailed) {
       return ExhaleFailed(
@@ -358,6 +412,99 @@ class ExhaleFailed extends StatelessWidget {
                 height: rh(context: context, px: 1.0),
                 letterSpacing: rh(context: context, px: 0.30)),
           )),
+    );
+  }
+}
+
+// 🚨 NEW WIDGET: Displayed ONLY when device ignores us for 8 seconds
+class IncompatibleDeviceScreen extends StatelessWidget {
+  final String errorText;
+  final VoidCallback onRetry;
+  final VoidCallback onSkip;
+
+  const IncompatibleDeviceScreen({
+    super.key,
+    required this.errorText,
+    required this.onRetry,
+    required this.onSkip,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Device Not Responding",
+            style: GoogleFonts.poppins(
+              color: const Color(0xFF252525),
+              fontSize: rh(context: context, px: 25),
+              fontWeight: FontWeight.w600,
+              height: rh(context: context, px: 1.29),
+              letterSpacing: rh(context: context, px: -1),
+            ),
+          ),
+          SizedBox(height: rh(context: context, px: 25)),
+          Text(
+            "Your device may not support the Practice Test stream. You can try again or skip this step.",
+            style: GoogleFonts.poppins(
+              color: const Color(0xFF535359),
+              fontSize: rh(context: context, px: 15),
+              fontWeight: FontWeight.w400,
+              height: rh(context: context, px: 1.30),
+              letterSpacing: rh(context: context, px: -0.30),
+            ),
+          ),
+          const Spacer(),
+
+          // Retry Button (Outlined)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              onPressed: onRetry,
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF308BF9), width: 2),
+                padding: EdgeInsets.symmetric(
+                    vertical: rh(context: context, px: 16)),
+              ),
+              child: Text(
+                "Try Again",
+                style: GoogleFonts.poppins(
+                  color: const Color(0xFF308BF9),
+                  fontSize: rh(context: context, px: 15),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: rh(context: context, px: 12)),
+
+          // Skip Button (Filled Blue)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: onSkip,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF308BF9),
+                padding: EdgeInsets.symmetric(
+                    vertical: rh(context: context, px: 16)),
+                elevation: 0,
+              ),
+              child: Text(
+                "Skip Practice Test",
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: rh(context: context, px: 15),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: rh(context: context, px: 20)),
+        ],
+      ),
     );
   }
 }
