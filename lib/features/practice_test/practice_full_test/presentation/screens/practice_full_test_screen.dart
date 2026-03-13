@@ -318,17 +318,19 @@ class ExhaleFailed extends StatelessWidget {
   Widget build(BuildContext context) {
     final e = text.toLowerCase();
 
-    final isInhale = _contains(e, "inhale");
-    final isDropped = _contains(e, "dropped") ||
-        _contains(e, "drop") ||
-        _contains(e, "out of range") ||
-        _contains(e, "range");
-    final timeout = _contains(e, "too long") ||
-        _contains(e, "timeout") ||
-        _contains(e, "no response") ||
-        _contains(e, "no exhale detected");
-
-    final isDisconnected = _contains(e, "disconnect");
+    // 🚨 FIXED KEYWORDS: Match all possible Cubit outputs
+    final isInhale = _contains(e, "inhale") ||
+        _contains(e, "negative") ||
+        _contains(e, "air in") ||
+        _contains(e, "instead of out");
+    final isTimeout = _contains(e, "time") ||
+        _contains(e, "long") ||
+        _contains(e, "response") ||
+        _contains(e, "no breath") ||
+        _contains(e, "no exhale") ||
+        _contains(e, "30 seconds");
+    final isDisconnected =
+        _contains(e, "disconnect") || _contains(e, "connection");
 
     if (isDisconnected) {
       return Padding(
@@ -400,43 +402,7 @@ class ExhaleFailed extends StatelessWidget {
       );
     }
 
-    if (isDropped) {
-      return Padding(
-        padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
-        child: Column(
-          children: [
-            const Spacer(),
-            Center(
-                child: Image.asset(
-              "assets/images/device_connection/img_inhale_exhale_dropped.png",
-            )),
-            SizedBox(
-              height: rh(context: context, px: 48),
-            ),
-            Center(
-              child: Text(
-                "Keep the ball in the\nrange for longer",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  color: const Color(0xFF252525),
-                  fontSize: rh(context: context, px: 25),
-                  fontWeight: FontWeight.w600,
-                  height: rh(context: context, px: 1.29),
-                  letterSpacing: rh(context: context, px: -1),
-                ),
-              ),
-            ),
-            const Spacer(),
-            _buildButton(context, isDisconnected: false),
-            SizedBox(
-              height: rh(context: context, px: 20),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (timeout) {
+    if (isTimeout) {
       return Padding(
         padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
         child: Column(
@@ -467,36 +433,33 @@ class ExhaleFailed extends StatelessWidget {
       );
     }
 
+    // 🚨 UPDATED DEFAULT FALLBACK: "Keep the ball in range" is now shown for all unhandled drops/failures
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Something went wrong.",
-            style: GoogleFonts.poppins(
-              color: const Color(0xFF252525),
-              fontSize: rh(context: context, px: 25),
-              fontWeight: FontWeight.w600,
-              height: rh(context: context, px: 1.29),
-              letterSpacing: rh(context: context, px: -1),
-            ),
-          ),
+          const Spacer(),
+          Center(
+              child: Image.asset(
+            "assets/images/device_connection/img_inhale_exhale_dropped.png",
+          )),
           SizedBox(
-            height: rh(context: context, px: 25),
+            height: rh(context: context, px: 48),
           ),
-          Text(
-            text.isEmpty ? "Don’t worry—let’s give it another try." : text,
-            style: GoogleFonts.poppins(
-              color: const Color(0xFF535359),
-              fontSize: rh(context: context, px: 15),
-              fontWeight: FontWeight.w400,
-              height: rh(context: context, px: 1.30),
-              letterSpacing: rh(context: context, px: -0.30),
+          Center(
+            child: Text(
+              "Keep the ball in the\nrange for longer",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF252525),
+                fontSize: rh(context: context, px: 25),
+                fontWeight: FontWeight.w600,
+                height: rh(context: context, px: 1.29),
+                letterSpacing: rh(context: context, px: -1),
+              ),
             ),
           ),
-          SizedBox(height: rh(context: context, px: 37)),
-          const Expanded(child: SizedBox()),
+          const Spacer(),
           _buildButton(context, isDisconnected: false),
           SizedBox(
             height: rh(context: context, px: 20),

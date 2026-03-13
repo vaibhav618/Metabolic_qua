@@ -8,7 +8,8 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 enum BleLinkStatus { connecting, connected, reconnecting, disconnected }
 
 class UuidBluetoothManager {
-  static final UuidBluetoothManager _instance = UuidBluetoothManager._internal();
+  static final UuidBluetoothManager _instance =
+      UuidBluetoothManager._internal();
   factory UuidBluetoothManager() => _instance;
 
   UuidBluetoothManager._internal() {
@@ -55,11 +56,14 @@ class UuidBluetoothManager {
   // ✅ allow auto reconnect
   bool autoReconnectEnabled = true;
 
+  // 🚨 EXPOSED DEVICE GETTER (Needed for Repository)
+  BluetoothDevice? get device => _device;
+
   final Guid serviceUuid = Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
   final Guid readCharacteristicUuid =
-  Guid("49535343-1e4d-4bd9-ba61-23c647249616");
+      Guid("49535343-1e4d-4bd9-ba61-23c647249616");
   final Guid writeCharacteristicUuid =
-  Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
+      Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
 
   bool get isConnected => _isConnected;
   Stream<bool> get connectionStream => _connCtrl.stream;
@@ -104,6 +108,8 @@ class UuidBluetoothManager {
     void Function(List<ScanResult>)? onResults,
   }) async {
     _stopScanRequested = false;
+    autoReconnectEnabled =
+        true; // 🚨 Re-enable auto-reconnect if we are actively scanning again
 
     final s = await FlutterBluePlus.adapterState.first;
     if (s != BluetoothAdapterState.on) {
@@ -145,8 +151,8 @@ class UuidBluetoothManager {
       if (st != BluetoothAdapterState.on) return;
 
       final last = _lastScanResultAt;
-      final noResultsRecently =
-          last == null || DateTime.now().difference(last) > const Duration(seconds: 4);
+      final noResultsRecently = last == null ||
+          DateTime.now().difference(last) > const Duration(seconds: 4);
 
       if (noResultsRecently) {
         _log("scanLoop: no results -> restarting scan");
@@ -221,14 +227,16 @@ class UuidBluetoothManager {
   }
 
   Future<void> connect(
-      BluetoothDevice device, {
-        Duration readyTimeout = const Duration(seconds: 12),
-      }) async {
+    BluetoothDevice device, {
+    Duration readyTimeout = const Duration(seconds: 12),
+  }) async {
     if (_connecting) {
       _log("connect() skipped: already connecting");
       return;
     }
     _connecting = true;
+    autoReconnectEnabled =
+        true; // 🚨 A deliberate connect call means we want auto-reconnect on.
 
     _emitLink(BleLinkStatus.connecting); // ✅ NEW
     _log("connect(${device.remoteId.str})");
@@ -301,9 +309,15 @@ class UuidBluetoothManager {
         await _hardResetLink();
         _teardown();
 
+        // 🚨 CRITICAL FIX: Only auto-reconnect if it wasn't an intentional disconnect
         if (autoReconnectEnabled && prevId != null) {
+          _log(
+              "Connection lost unexpectedly. Triggering auto-reconnect for $prevId");
           // ignore: unawaited_futures
           _autoReconnect(prevId);
+        } else {
+          _log(
+              "Intentional disconnect or auto-reconnect disabled. Skipping reconnect.");
         }
       }
     });
@@ -384,9 +398,14 @@ class UuidBluetoothManager {
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
+  // 🚨 CRITICAL FIX: The disconnect method now ensures auto-reconnect is dead
   Future<void> disconnect() async {
     _log("disconnect()");
-    autoReconnectEnabled = false; // manual disconnect should not auto reconnect
+
+    // 🚨 We explicitly turn this off so the `device.connectionState.listen`
+    // block does not trigger `_autoReconnect()` when the OS fires the drop event.
+    autoReconnectEnabled = false;
+
     _emitLink(BleLinkStatus.disconnected); // ✅ NEW
 
     try {
@@ -395,7 +414,8 @@ class UuidBluetoothManager {
       if (kDebugMode) print("⚠️ disconnect() threw: $e");
     } finally {
       _teardown();
-      autoReconnectEnabled = true;
+      // DO NOT reset autoReconnectEnabled back to true here!
+      // It must stay false until the user explicitly calls connect() or startScan() again.
     }
   }
 
@@ -425,11 +445,13 @@ class UuidBluetoothManager {
     for (final s in services) {
       if (s.uuid == serviceUuid) {
         for (final c in s.characteristics) {
-          if (c.uuid == readCharacteristicUuid || (c.properties.notify && nChar == null)) {
+          if (c.uuid == readCharacteristicUuid ||
+              (c.properties.notify && nChar == null)) {
             nChar = c;
           }
           if (c.uuid == writeCharacteristicUuid ||
-              ((c.properties.write || c.properties.writeWithoutResponse) && wChar == null)) {
+              ((c.properties.write || c.properties.writeWithoutResponse) &&
+                  wChar == null)) {
             wChar = c;
           }
         }
@@ -461,8 +483,8 @@ class UuidBluetoothManager {
     if (_device == null || !_isConnected || _writeChar == null) return;
 
     final bytes = data.codeUnits;
-    final withoutResponse =
-        _writeChar!.properties.writeWithoutResponse && !_writeChar!.properties.write;
+    final withoutResponse = _writeChar!.properties.writeWithoutResponse &&
+        !_writeChar!.properties.write;
 
     for (int i = 1; i <= maxRetries; i++) {
       try {

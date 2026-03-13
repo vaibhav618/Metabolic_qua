@@ -711,12 +711,12 @@ class _NoDataPrompt extends StatelessWidget {
 
 class _SwipeActionOverlay extends StatelessWidget {
   final ClientProfileModel clientProfile;
-  final DateTime selectedDate;
+  final DateTime selectedDate; // 🚨 ADDED
   final void Function(TestDataState testState) onSwiped;
 
   const _SwipeActionOverlay({
     required this.clientProfile,
-    required this.selectedDate,
+    required this.selectedDate, // 🚨 ADDED
     required this.onSwiped,
   });
 
@@ -727,16 +727,16 @@ class _SwipeActionOverlay extends StatelessWidget {
       left: 0,
       right: 0,
       child: BlocBuilder<TodayTestDataBloc, TestDataState>(
+        // 🚨 Removed buildWhen so the UI reacts immediately to date changes
         builder: (context, testState) {
-          // 🚨 TEMPORARY TESTING CHANGE:
-          // We only check if it's today. We IGNORE if testState.result is null.
+          // 🚨 ADDED: Check if the currently selected date is today
           final isToday = DateUtils.isSameDay(selectedDate, DateTime.now());
 
-          if (!isToday) {
+          // 🚨 HIDE IF: It is NOT today, OR a test has already been taken
+          if (!isToday || testState.result != null) {
             return const SizedBox.shrink();
           }
 
-          // The button will now stay visible even after the test is completed
           return Center(
             child: SwipeButtonWidget(
               onSwiped: () {

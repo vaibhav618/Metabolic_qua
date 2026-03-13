@@ -48,6 +48,52 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   void initState() {
     super.initState();
     _startLowBatteryTrap();
+
+    // 🚨 THE PERMANENT FIX: Environment Sanitization
+    // We ensure that any logic from Main Test is physically severed
+    // and the Bloc is wiped clean before the user can see the menu.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final repo = context.read<BluetoothRepository>();
+        final bloc = context.read<PracticeFlowBloc>();
+
+        // 1. Force the Bloc to a cold start state (isConnected: false, steps: locked)
+        bloc.add(const PracticeFlowReset());
+
+        if (repo.isConnected) {
+          debugPrint(
+              "🧪 Practice Entry: Active connection found. Killing it...");
+
+          // 2. Tell hardware to stop and clear its internal buffers
+          try {
+            repo.sendData("&");
+          } catch (_) {}
+
+          // 3. Sever the physical link
+          await repo.disconnect();
+
+          // 4. WAIT for the OS to report a true disconnection.
+          // This prevents the "already connected" ghosting issue.
+          int attempts = 0;
+          while (repo.isConnected && attempts < 10) {
+            await Future.delayed(const Duration(milliseconds: 100));
+            attempts++;
+          }
+
+          debugPrint("🧪 Practice Entry: Physical link severed successfully.");
+        }
+
+        // 5. Re-initialize the Bloc now that the air is clear.
+        // This calls _bindBle() fresh, ensuring THIS Bloc is the primary listener.
+        bloc.add(const PracticeFlowInit());
+
+        if (mounted) {
+          setState(() {
+            _requireManualReconnect = false;
+          });
+        }
+      } catch (_) {}
+    });
   }
 
   // 🚨 THE TRAP: Listens for fragmented battery errors in the background

@@ -2,17 +2,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp;
+
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/model/bluetooth_device_model.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/repository/bluetooth_repository.dart';
-
-import '../../../data/datasource/bluetooth_manager.dart';
 import 'bluetooth_connection_state.dart';
 
 class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
   final BluetoothRepository repo;
 
   Timer? _readyTimeoutTimer;
-
   StreamSubscription? _connSub;
   StreamSubscription? _dataSub;
   StreamSubscription? _readySub;
@@ -23,8 +21,9 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
   Timer? _pruneTimer;
   Timer? _scanKickTimer;
 
-  // ✅ NEW
-  StreamSubscription? _linkSub;
+  Timer? _connectGraceTimer;
+  bool _connectAttemptActive = false;
+  String? _selectedDeviceId;
 
   static const Duration _readyTimeout = Duration(seconds: 5);
 
@@ -35,6 +34,8 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
   static const Duration _scanKickEvery = Duration(seconds: 7);
   static const Duration _scanKickGap = Duration(milliseconds: 200);
 
+  static const Duration _connectGraceDuration = Duration(seconds: 4);
+
   bool _wasEverConnected = false;
 
   bool _handshakeCompleted = false;
@@ -43,6 +44,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
   bool _initCalled = false;
   bool _scanRequested = false;
   bool _startingScan = false;
+
   bool deviceIsExhaleOrInhaleModeCalled = false;
 
   final _frameBuffer = _BleFrameBuffer();
@@ -52,7 +54,6 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
 
   void _log(String msg) {
     if (kDebugMode) {
-      // ignore: avoid_print
       print("🟦 BLE_CUBIT | $msg");
     }
   }
@@ -62,8 +63,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       emit(s);
       _log(
         "EMIT => status=${s.status}, scan=${s.isScanning}, conn=${s.isConnected}, "
-            "connecting=${s.isConnecting}, id=${s.connectingDeviceId}, ready=${s.deviceReady}, "
-            "reconnecting=${s.isReconnecting}, linkMsg=${s.linkMessage}",
+        "connecting=${s.isConnecting}, id=${s.connectingDeviceId}, ready=${s.deviceReady}",
       );
     }
   }
@@ -71,7 +71,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
   final RegExp _slashNum = RegExp(r'^\s*/\s*(\d+(?:\.\d+)?)\s*/\s*$');
   final RegExp _curlyNum = RegExp(r'^\s*\{\s*(\d+(?:\.\d+)?)\s*\}\s*$');
 
-  Future<void> init() async {
+  Future<void> init({String? profileId}) async {
     if (_initCalled) return;
     _initCalled = true;
 
@@ -80,14 +80,14 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     _listenData();
     _listenDeviceReady();
 
-    // ✅ NEW: listen link status from manager
-    _listenLinkStatus();
-
     if (repo.isConnected) {
       _wasEverConnected = true;
       _handshakeCompleted = false;
       _handshakeInProgress = false;
       _frameBuffer.clear();
+      deviceIsExhaleOrInhaleModeCalled = false;
+      _connectAttemptActive = false;
+      _connectGraceTimer?.cancel();
 
       safeEmit(state.copyWith(
         isConnected: true,
@@ -96,13 +96,39 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
         isScanning: false,
         clearTextError: true,
         deviceIsInhaleOrExhaleMode: false,
-
-        // ✅ clear reconnect UI
-        isReconnecting: false,
-        clearLinkMessage: true,
+        deviceReady: false,
       ));
 
-      await _checkAppReadiness();
+      try {
+        //  await repo.prepareForNewSession();
+      } catch (e) {}
+
+      if (repo.isConnected) {
+        // Already connected, so proceed to the next process immediately
+        _wasEverConnected = true;
+        _handshakeCompleted = false;
+        _handshakeInProgress = false;
+        _frameBuffer.clear();
+        deviceIsExhaleOrInhaleModeCalled = false;
+        _connectAttemptActive = false;
+        _connectGraceTimer?.cancel();
+
+        safeEmit(state.copyWith(
+          isConnected: true,
+          isConnecting: false,
+          status: BluetoothConnectionStatus.connected,
+          isScanning: false,
+          clearTextError: true,
+          deviceIsInhaleOrExhaleMode: false,
+          deviceReady: false,
+        ));
+
+        _checkAppReadiness();
+      }
+      // if (repo.isReady) {
+      //   await _checkAppReadiness();
+      // } else {
+      // }
       return;
     }
 
@@ -116,61 +142,96 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       isDeviceError: false,
       clearTextError: true,
       clearConnectingDeviceId: true,
-
-      // ✅ clear reconnect UI
-      isReconnecting: false,
-      clearLinkMessage: true,
+      deviceIsInhaleOrExhaleMode: false,
     ));
 
     _scanRequested = true;
     await _startScanFlow();
   }
 
-  // ✅ NEW: convert manager link status -> UI flags only
-  void _listenLinkStatus() {
-    _linkSub?.cancel();
+  Future<void> disposeConnection() async {
+    _log("disposeConnection() called");
 
-    _linkSub = UuidBluetoothManager().linkStatusStream.listen((s) {
-      _log("LINK_STATUS => $s");
+    // cancel timers
+    _readyTimeoutTimer?.cancel();
+    _readyTimeoutTimer = null;
 
-      switch (s) {
-        case BleLinkStatus.reconnecting:
-          safeEmit(state.copyWith(
-            isReconnecting: true,
-            linkMessage: "Connection lost. Reconnecting...",
-            status: BluetoothConnectionStatus.connecting,
-            deviceReady: false,
-            isDeviceError: false,
-            clearTextError: true,
-          ));
-          break;
+    _scanRetryTimer?.cancel();
+    _scanRetryTimer = null;
 
-        case BleLinkStatus.connecting:
-          safeEmit(state.copyWith(
-            isReconnecting: false,
-            linkMessage: "Connecting...",
-          ));
-          break;
+    _pruneTimer?.cancel();
+    _pruneTimer = null;
 
-        case BleLinkStatus.connected:
-          safeEmit(state.copyWith(
-            isReconnecting: false,
-            clearLinkMessage: true,
-          ));
-          break;
+    _scanKickTimer?.cancel();
+    _scanKickTimer = null;
 
-        case BleLinkStatus.disconnected:
-        // Don’t force scan/stop here — your existing connection stream will do that.
-          safeEmit(state.copyWith(
-            isReconnecting: false,
-            linkMessage: "Disconnected",
-            deviceReady: false,
-          ));
-          break;
-      }
-    }, onError: (e) {
-      _log("LINK_STATUS ERROR => $e");
-    });
+    _connectGraceTimer?.cancel();
+    _connectGraceTimer = null;
+
+    // reset flags
+    _connectAttemptActive = false;
+    _selectedDeviceId = null;
+    _wasEverConnected = false;
+    _handshakeCompleted = false;
+    _handshakeInProgress = false;
+    _initCalled = false;
+    _scanRequested = false;
+    _startingScan = false;
+    deviceIsExhaleOrInhaleModeCalled = false;
+
+    // clear local buffers
+    _frameBuffer.clear();
+    _seen.clear();
+
+    // cancel active subscriptions
+    try {
+      await _adapterSub?.cancel();
+    } catch (_) {}
+    _adapterSub = null;
+
+    try {
+      await _connSub?.cancel();
+    } catch (_) {}
+    _connSub = null;
+
+    try {
+      await _dataSub?.cancel();
+    } catch (_) {}
+    _dataSub = null;
+
+    try {
+      await _readySub?.cancel();
+    } catch (_) {}
+    _readySub = null;
+
+    try {
+      await _scanSub?.cancel();
+    } catch (_) {}
+    _scanSub = null;
+
+    // stop BLE work from repository side
+    try {
+      await repo.stopScan();
+    } catch (_) {}
+
+    try {
+      await repo.disconnect();
+    } catch (_) {}
+
+    // reset cubit state
+    safeEmit(state.copyWith(
+      status: BluetoothConnectionStatus.disconnected,
+      isScanning: false,
+      isConnecting: false,
+      isConnected: false,
+      devices: const [],
+      deviceReady: false,
+      isDeviceError: false,
+      clearTextError: true,
+      clearConnectingDeviceId: true,
+      deviceIsInhaleOrExhaleMode: false,
+      lastData: "",
+    ));
   }
 
   void _listenAdapter() {
@@ -178,69 +239,68 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     _adapterSub = fbp.FlutterBluePlus.adapterState.listen((s) async {
       _log("ADAPTER_STREAM => $s");
 
-      if (s != fbp.BluetoothAdapterState.on) {
-        _readyTimeoutTimer?.cancel();
-        _scanRetryTimer?.cancel();
-        _pruneTimer?.cancel();
-        _scanKickTimer?.cancel();
-
-        _handshakeCompleted = false;
-        _handshakeInProgress = false;
-        _frameBuffer.clear();
-
-        _seen.clear();
-
-        try {
-          await repo.stopScan();
-        } catch (_) {}
-
-        safeEmit(state.copyWith(
-          isScanning: false,
-          devices: const [],
-          deviceReady: false,
-          isConnected: false,
-          isConnecting: false,
-          status: BluetoothConnectionStatus.disconnected,
-          isDeviceError: false,
-          clearConnectingDeviceId: true,
-
-          // ✅ show bluetooth off message
-          isReconnecting: false,
-          linkMessage: "Bluetooth is off",
-        ));
-        return;
-      }
-
-      if (_scanRequested &&
-          !state.isConnected &&
-          !state.isConnecting &&
-          !state.isScanning) {
-        await _startScanFlow();
+      if (s == fbp.BluetoothAdapterState.off) {
+        // Bluetooth turned off
+        _handleBluetoothOff();
       }
     }, onError: (e) {
       _log("ADAPTER_STREAM ERROR => $e");
     });
   }
 
+  void _handleBluetoothOff() async {
+    // When Bluetooth is turned off, stop scanning and reset state
+    _log("Bluetooth is off, stopping scan and resetting state.");
+
+    _readyTimeoutTimer?.cancel();
+    _scanRetryTimer?.cancel();
+    _pruneTimer?.cancel();
+    _scanKickTimer?.cancel();
+    _connectGraceTimer?.cancel();
+
+    _handshakeCompleted = false;
+    _handshakeInProgress = false;
+    deviceIsExhaleOrInhaleModeCalled = false;
+    _frameBuffer.clear();
+    _seen.clear();
+    _connectAttemptActive = false;
+    _selectedDeviceId = null;
+
+    try {
+      await repo.stopScan();
+    } catch (_) {}
+
+    // Clear devices from the list
+    safeEmit(state.copyWith(
+      isScanning: false,
+      devices: const [],
+      deviceReady: false,
+      isConnected: false,
+      isConnecting: false,
+      status: BluetoothConnectionStatus.disconnected,
+      isDeviceError: false,
+      clearConnectingDeviceId: true,
+      deviceIsInhaleOrExhaleMode: false,
+    ));
+  }
+
   void _listenConnection() {
     _connSub?.cancel();
 
     _log("_listenConnection() subscribed");
+
     _connSub = repo.connectionStatusStream().listen((connected) async {
       _log(
-        "CONN_STREAM => connected=$connected | state(connecting=${state.isConnecting}, wasEver=$_wasEverConnected)",
+        "CONN_STREAM => connected=$connected | state(connecting=${state.isConnecting}, wasEver=$_wasEverConnected, attempt=$_connectAttemptActive)",
       );
 
       if (connected) {
         _wasEverConnected = true;
-
-        _scanRetryTimer?.cancel();
-        _pruneTimer?.cancel();
-        _scanKickTimer?.cancel();
-
         _handshakeCompleted = false;
         _handshakeInProgress = false;
+        deviceIsExhaleOrInhaleModeCalled = false;
         _frameBuffer.clear();
+        _connectAttemptActive = false;
 
         safeEmit(state.copyWith(
           isConnected: true,
@@ -248,31 +308,17 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
           status: BluetoothConnectionStatus.connected,
           isScanning: false,
           clearTextError: true,
-
-          // ✅ clear reconnect UI
-          isReconnecting: false,
-          clearLinkMessage: true,
+          deviceIsInhaleOrExhaleMode: false,
+          deviceReady: false,
         ));
 
-        await _checkAppReadiness();
         return;
       }
 
-      if (state.isConnecting && !_wasEverConnected) {
-        _log("IGNORED transient DISCONNECTED (during connecting)");
-        return;
+      // If device gets disconnected, remove it from the list
+      if (!connected && _seen.containsKey(_selectedDeviceId)) {
+        _seen.remove(_selectedDeviceId); // Remove the disconnected device
       }
-
-      _readyTimeoutTimer?.cancel();
-      _scanRetryTimer?.cancel();
-      _pruneTimer?.cancel();
-      _scanKickTimer?.cancel();
-
-      _handshakeCompleted = false;
-      _handshakeInProgress = false;
-      _frameBuffer.clear();
-
-      _seen.clear();
 
       safeEmit(state.copyWith(
         isConnected: false,
@@ -280,7 +326,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
         deviceReady: false,
         status: BluetoothConnectionStatus.disconnected,
         clearConnectingDeviceId: true,
-        // NOTE: reconnect banner handled by linkStatusStream if it’s reconnecting
+        deviceIsInhaleOrExhaleMode: false,
       ));
 
       _scanRequested = true;
@@ -298,11 +344,15 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     _readySub?.cancel();
 
     _log("_listenDeviceReady() subscribed");
+
     _readySub = repo.deviceReadyStream().listen((isGattReady) async {
-      _log("READY_STREAM => $isGattReady | isConnected=${state.isConnected}");
-      if (isGattReady && state.isConnected) {
-        await _checkAppReadiness();
-      }
+      _log(
+          "READY_STREAM => isGattReady=$isGattReady | connected=${state.isConnected}");
+
+      if (!state.isConnected) return;
+      if (!isGattReady) return;
+
+      await _checkAppReadiness();
     }, onError: (e) {
       _log("READY_STREAM ERROR => $e");
     });
@@ -312,20 +362,23 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     _dataSub?.cancel();
 
     _log("_listenData() subscribed");
+
     _dataSub = repo.receivedDataStream().listen((data) {
       final cleaned = data.trim();
       if (cleaned.isEmpty) return;
 
       _log("DATA_STREAM => '$cleaned'");
-      onBleData(cleaned);
 
+      onBleData(cleaned);
       safeEmit(state.copyWith(lastData: cleaned));
     }, onError: (e) {
       _log("DATA_STREAM ERROR => $e");
     });
   }
 
-  Future<void> _startScanFlow({Duration timeout = const Duration(seconds: 15)}) async {
+  Future<void> _startScanFlow({
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
     if (_startingScan) return;
     if (state.isConnected || state.isConnecting) return;
 
@@ -354,13 +407,17 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
   }
 
   Future<void> _checkAppReadiness() async {
-    _log("_checkAppReadiness() completed=$_handshakeCompleted inProgress=$_handshakeInProgress");
+    _log(
+      "_checkAppReadiness() called | completed=$_handshakeCompleted, inProgress=$_handshakeInProgress",
+    );
 
     if (!state.isConnected) return;
+    // if (!repo.isReady) return;
     if (_handshakeCompleted) return;
     if (_handshakeInProgress) return;
 
     _handshakeInProgress = true;
+
     _readyTimeoutTimer?.cancel();
 
     await _sendHandshake();
@@ -375,6 +432,11 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       if (_handshakeCompleted) {
         timer.cancel();
         _handshakeInProgress = false;
+        return;
+      }
+
+      if (!repo.isConnected) {
+        _log("READY_TIMEOUT tick but repo not ready -> waiting");
         return;
       }
 
@@ -423,13 +485,15 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     _scanSub?.cancel();
 
     _scanSub = repo.scan(timeout: timeout).listen(
-          (devices) {
+      (devices) {
         final now = DateTime.now();
 
+        int added = 0;
         for (final d in devices) {
           final name = d.name.trim().toLowerCase();
           if (!name.contains("respyr")) continue;
           _seen[d.id] = _SeenDevice(d, now);
+          added++;
         }
 
         _pruneAndEmit();
@@ -448,18 +512,14 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     );
   }
 
-  void startScan({Duration timeout = const Duration(seconds: 15)}) async{
-
-    try {
-      await repo.stopScan();
-    } catch (_) {}
-
+  void startScan({Duration timeout = const Duration(seconds: 15)}) {
     if (state.isConnected || state.isConnecting) return;
 
     _scanSub?.cancel();
     _scanRetryTimer?.cancel();
     _pruneTimer?.cancel();
     _scanKickTimer?.cancel();
+    _connectGraceTimer?.cancel();
     _seen.clear();
 
     safeEmit(state.copyWith(
@@ -470,10 +530,8 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       isDeviceError: false,
       clearTextError: true,
       clearConnectingDeviceId: true,
-
-      // ✅ scanning hides reconnect banner
-      isReconnecting: false,
-      clearLinkMessage: true,
+      deviceReady: false,
+      deviceIsInhaleOrExhaleMode: false,
     ));
 
     _attachRepoScan(timeout: timeout);
@@ -528,8 +586,28 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     });
   }
 
-  Future<void> connectById(String id) async {
+  // Method to clear/abort a queued connection
+  void cancelConnect() {
+    if (_connectAttemptActive) {
+      // Abort or cancel any in-progress connection
+      _log("Canceling queued connection attempt.");
+      _connectAttemptActive = false; // Reset the flag
+      // Optionally, trigger cleanup like stopping the scan
+      repo.stopScan();
+      emit(state.copyWith(
+        isConnecting: false,
+        status: BluetoothConnectionStatus.disconnected,
+        deviceReady: false,
+      ));
+    }
+  }
+
+  Future<void> connectById(String id, {String? profileId}) async {
     if (state.isConnecting || state.isConnected) return;
+
+    _selectedDeviceId = id;
+    _connectAttemptActive = true;
+    _connectGraceTimer?.cancel();
 
     final s = await fbp.FlutterBluePlus.adapterState.first;
     if (s != fbp.BluetoothAdapterState.on) {
@@ -546,6 +624,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     _pruneTimer?.cancel();
     _scanKickTimer?.cancel();
     _scanSub?.cancel();
+    _connectGraceTimer?.cancel();
 
     try {
       await repo.stopScan();
@@ -555,6 +634,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
 
     _handshakeCompleted = false;
     _handshakeInProgress = false;
+    deviceIsExhaleOrInhaleModeCalled = false;
     _frameBuffer.clear();
 
     safeEmit(state.copyWith(
@@ -565,21 +645,18 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       deviceReady: false,
       isDeviceError: false,
       clearTextError: true,
-
-      isReconnecting: false,
-      linkMessage: "Connecting...",
     ));
 
     try {
       await repo.connectById(id);
     } catch (e) {
+      _connectAttemptActive = false;
       safeEmit(state.copyWith(
         status: BluetoothConnectionStatus.textError,
         textError: e.toString(),
         isConnecting: false,
         isConnected: false,
         clearConnectingDeviceId: true,
-        isReconnecting: false,
       ));
       _scanRequested = true;
       await _startScanFlow();
@@ -587,16 +664,20 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
   }
 
   Future<void> disconnect() async {
+    _connectAttemptActive = false;
+    _connectGraceTimer?.cancel();
+    _selectedDeviceId = null;
+
     try {
       await repo.disconnect();
-    } catch (_) {}
+    } catch (e) {}
   }
 
   void sendAbort() {
     if (state.isConnected) {
       try {
         repo.sendData("&");
-      } catch (_) {}
+      } catch (e) {}
     }
   }
 
@@ -622,9 +703,12 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       return;
     }
 
-    final bool isInhaleExhalePacket = _slashNum.hasMatch(f) || _curlyNum.hasMatch(f);
+    final bool isInhaleExhalePacket =
+        _slashNum.hasMatch(f) || _curlyNum.hasMatch(f);
+
     if (isInhaleExhalePacket) {
       _log("✅ INHALE/EXHALE DETECTED => $f");
+
       if (!deviceIsExhaleOrInhaleModeCalled) {
         deviceIsExhaleOrInhaleModeCalled = true;
         safeEmit(state.copyWith(deviceIsInhaleOrExhaleMode: true));
@@ -638,13 +722,13 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     _scanRetryTimer?.cancel();
     _pruneTimer?.cancel();
     _scanKickTimer?.cancel();
+    _connectGraceTimer?.cancel();
 
     await _adapterSub?.cancel();
     await _connSub?.cancel();
     await _dataSub?.cancel();
     await _readySub?.cancel();
     await _scanSub?.cancel();
-    await _linkSub?.cancel();
 
     return super.close();
   }

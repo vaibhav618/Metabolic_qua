@@ -4,8 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:respyr_dietitian/features/dashboard/qua_dashboard/qua_profile/presentation/screens/qua_profile.dart';
 import 'package:respyr_dietitian/features/science/presentation/reference_screen.dart';
 import 'package:go_router/go_router.dart';
-import 'package:respyr_dietitian/routes/app_routes.dart';
-
 import '../../../../../client-dashboard/data/model/client_profile_model.dart';
 import '../../../../../client-dashboard/extras/logout.dart';
 import '../../../../../common/screens/app_webview_screen.dart';

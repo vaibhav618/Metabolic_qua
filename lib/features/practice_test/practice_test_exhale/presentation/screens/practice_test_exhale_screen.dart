@@ -190,10 +190,6 @@ class ExhaleFailed extends StatelessWidget {
     final e = raw.toLowerCase();
 
     final isInhale = _contains(e, "inhale");
-    final isDropped = _contains(e, "dropped") ||
-        _contains(e, "drop") ||
-        _contains(e, "out of range") ||
-        _contains(e, "range");
     final timeout = _contains(e, "too long") ||
         _contains(e, "timeout") ||
         _contains(e, "no response") ||
@@ -275,42 +271,6 @@ class ExhaleFailed extends StatelessWidget {
       );
     }
 
-    if (isDropped) {
-      return Padding(
-        padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
-        child: Column(
-          children: [
-            Spacer(),
-            Center(
-                child: Image.asset(
-              "assets/images/device_connection/img_inhale_exhale_dropped.png",
-            )),
-            SizedBox(
-              height: rh(context: context, px: 48),
-            ),
-            Center(
-              child: Text(
-                "Keep the ball in the\nrange for longer",
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  color: const Color(0xFF252525),
-                  fontSize: rh(context: context, px: 25),
-                  fontWeight: FontWeight.w600,
-                  height: rh(context: context, px: 1.29),
-                  letterSpacing: rh(context: context, px: -1),
-                ),
-              ),
-            ),
-            Spacer(),
-            _buildButton(context, isDisconnected: false),
-            SizedBox(
-              height: rh(context: context, px: 20),
-            ),
-          ],
-        ),
-      );
-    }
-
     if (timeout) {
       return Padding(
         padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
@@ -342,37 +302,33 @@ class ExhaleFailed extends StatelessWidget {
       );
     }
 
-    // 🚨 ADDED: Generic fallback so it never returns a blank white screen
+    // 🚨 UPDATED DEFAULT FALLBACK: "Keep the ball in range" is now shown for all unhandled drops/failures
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: rh(context: context, px: 17)),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Something went wrong.",
-            style: GoogleFonts.poppins(
-              color: const Color(0xFF252525),
-              fontSize: rh(context: context, px: 25),
-              fontWeight: FontWeight.w600,
-              height: rh(context: context, px: 1.29),
-              letterSpacing: rh(context: context, px: -1),
-            ),
-          ),
+          const Spacer(),
+          Center(
+              child: Image.asset(
+            "assets/images/device_connection/img_inhale_exhale_dropped.png",
+          )),
           SizedBox(
-            height: rh(context: context, px: 25),
+            height: rh(context: context, px: 48),
           ),
-          Text(
-            raw.isEmpty ? "Don’t worry—let’s give it another try." : raw,
-            style: GoogleFonts.poppins(
-              color: const Color(0xFF535359),
-              fontSize: rh(context: context, px: 15),
-              fontWeight: FontWeight.w400,
-              height: rh(context: context, px: 1.30),
-              letterSpacing: rh(context: context, px: -0.30),
+          Center(
+            child: Text(
+              "Keep the ball in the\nrange for longer",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                color: const Color(0xFF252525),
+                fontSize: rh(context: context, px: 25),
+                fontWeight: FontWeight.w600,
+                height: rh(context: context, px: 1.29),
+                letterSpacing: rh(context: context, px: -1),
+              ),
             ),
           ),
-          SizedBox(height: rh(context: context, px: 37)),
-          const Expanded(child: SizedBox()),
+          const Spacer(),
           _buildButton(context, isDisconnected: false),
           SizedBox(
             height: rh(context: context, px: 20),

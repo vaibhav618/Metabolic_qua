@@ -58,15 +58,16 @@ class _BluetoothCalibrationScreenState
   }
 
   Future<bool> _showCancelDialog(
-      BluetoothCalibrationCubit cubit,
-      bool allSignalSent,
-      ) async {
+    BluetoothCalibrationCubit cubit,
+    bool allSignalSent,
+  ) async {
     _dialogOpen = true;
     final completer = Completer<bool>();
 
     _postFrame(() {
       showCancelTestDialog(context, () async {
-        if (allSignalSent) cubit.sendAbort();
+        // if (allSignalSent) cubit.sendAbort();
+        cubit.sendAbort();
         completer.complete(true);
       });
 
@@ -85,9 +86,9 @@ class _BluetoothCalibrationScreenState
   }
 
   void _showTimeoutDialog(
-      BluetoothCalibrationCubit cubit,
-      BluetoothCalibrationState state,
-      ) {
+    BluetoothCalibrationCubit cubit,
+    BluetoothCalibrationState state,
+  ) {
     if (_dialogOpen) return;
     _dialogOpen = true;
 
@@ -100,7 +101,7 @@ class _BluetoothCalibrationScreenState
         },
         message: "Session timed out",
         description:
-        "No response was received from the device. Please restart the test.",
+            "No response was received from the device. Please restart the test.",
       ).then((_) => _dialogOpen = false);
     });
   }
@@ -147,10 +148,9 @@ class _BluetoothCalibrationScreenState
         ctx.read<BluetoothRepository>(),
         AudioHelper(),
       ),
-      child: BlocListener<BluetoothCalibrationCubit,
-          BluetoothCalibrationState>(
+      child: BlocListener<BluetoothCalibrationCubit, BluetoothCalibrationState>(
         listenWhen: (prev, curr) =>
-        prev.navigateToInhaleScreen != curr.navigateToInhaleScreen ||
+            prev.navigateToInhaleScreen != curr.navigateToInhaleScreen ||
             prev.textError != curr.textError ||
             prev.isDialogShown != curr.isDialogShown ||
             prev.isTimeOver != curr.isTimeOver ||
@@ -158,7 +158,6 @@ class _BluetoothCalibrationScreenState
             prev.startCalibrationTime != curr.startCalibrationTime,
         listener: (context, state) {
           final cubit = context.read<BluetoothCalibrationCubit>();
-
 
           if (state.navigateToInhaleScreen) {
             _postFrame(() {
@@ -189,12 +188,12 @@ class _BluetoothCalibrationScreenState
           }
 
           if (state.isDialogShown || !state.isBluetoothConnected) {
-             UuidBluetoothManager().clearAllConnections();
+            UuidBluetoothManager().clearAllConnections();
             _showDisconnectedDialog(cubit);
           }
         },
         child:
-        BlocBuilder<BluetoothCalibrationCubit, BluetoothCalibrationState>(
+            BlocBuilder<BluetoothCalibrationCubit, BluetoothCalibrationState>(
           builder: (context, state) {
             final cubit = context.read<BluetoothCalibrationCubit>();
 
@@ -203,8 +202,7 @@ class _BluetoothCalibrationScreenState
               onPopInvoked: (didPop) async {
                 if (didPop) return;
 
-                if (state.isTimeOver &&
-                    !state.navigateToInhaleScreen) {
+                if (state.isTimeOver && !state.navigateToInhaleScreen) {
                   if (state.allSignalSent) cubit.sendAbort();
                   _navigateToDashboard(cubit);
                   return;
@@ -235,7 +233,9 @@ class _BluetoothCalibrationScreenState
                     crossAxisAlignment: CrossAxisAlignment.center,
                     mainAxisSize: MainAxisSize.max,
                     children: [
-                      SizedBox(height: rh(context: context, px: 20),),
+                      SizedBox(
+                        height: rh(context: context, px: 20),
+                      ),
                       SizedBox(
                         width: double.infinity,
                         child: Visibility(
@@ -248,38 +248,35 @@ class _BluetoothCalibrationScreenState
                               fontSize: rh(context: context, px: 25),
                               fontWeight: FontWeight.w600,
                               height: 1.10,
-                              letterSpacing:
-                              rh(context: context, px: -1),
+                              letterSpacing: rh(context: context, px: -1),
                             ),
                           ),
                           child: Text(
                             state.remainingSeconds >= 100
                                 ? "Please wait..."
-                                : state.remainingSeconds <= 0 ? "Starting..." : "Please wait...${state.remainingSeconds}",
+                                : state.remainingSeconds <= 0
+                                    ? "Starting..."
+                                    : "Please wait...${state.remainingSeconds}",
                             textAlign: TextAlign.center,
                             style: GoogleFonts.poppins(
                               color: const Color(0xFF252525),
                               fontSize: rh(context: context, px: 25),
                               fontWeight: FontWeight.w600,
                               height: 1.10,
-                              letterSpacing:
-                              rh(context: context, px: -1),
+                              letterSpacing: rh(context: context, px: -1),
                             ),
                           ),
                         ),
                       ),
                       const Spacer(),
                       SizedBox(
-                        width:
-                        MediaQuery.of(context).size.width * 0.7,
+                        width: MediaQuery.of(context).size.width * 0.7,
                         child: AspectRatio(
                           aspectRatio: 1,
                           child: CircularProgressIndicator(
-                            strokeWidth:
-                            rh(context: context, px: 6),
+                            strokeWidth: rh(context: context, px: 6),
                             color: const Color(0xFF308BF9),
-                            backgroundColor:
-                            const Color(0xFFE1E6ED),
+                            backgroundColor: const Color(0xFFE1E6ED),
                           ),
                         ),
                       ),
