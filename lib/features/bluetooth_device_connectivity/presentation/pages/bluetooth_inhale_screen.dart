@@ -31,7 +31,8 @@ class BluetoothInhaleScreen extends StatelessWidget {
     required this.clientProfileModel,
     required this.dietPlanStrategyModel,
     required this.minRange,
-    required this.maxRange, required this.breathingSettings,
+    required this.maxRange,
+    required this.breathingSettings,
   });
 
   @override
@@ -53,7 +54,6 @@ class BluetoothInhaleScreen extends StatelessWidget {
   }
 }
 
-
 class _BluetoothInhaleView extends StatelessWidget {
   final ClientProfileModel clientProfileModel;
   final DietPlanStrategyModel dietPlanStrategyModel;
@@ -65,7 +65,8 @@ class _BluetoothInhaleView extends StatelessWidget {
     required this.clientProfileModel,
     required this.dietPlanStrategyModel,
     required this.minRange,
-    required this.maxRange, required this.breathingSettings,
+    required this.maxRange,
+    required this.breathingSettings,
   });
 
   Future<bool> showCancelTestDialogBox(BuildContext context, bool hold) async {
@@ -73,7 +74,8 @@ class _BluetoothInhaleView extends StatelessWidget {
 
     showCancelTestDialog(context, () async {
       context.read<BluetoothInhaleCubit>().sendAbort();
-      if(hold) await context.read<BluetoothInhaleCubit>().setCancelOrDisconnectFlag();
+      if (hold)
+        await context.read<BluetoothInhaleCubit>().setCancelOrDisconnectFlag();
       context.go(
         AppRoutes.clientDashboard,
         extra: clientProfileModel,
@@ -103,7 +105,7 @@ class _BluetoothInhaleView extends StatelessWidget {
 
         return BlocConsumer<BluetoothInhaleCubit, BluetoothInhaleState>(
           listenWhen: (prev, curr) =>
-          prev.isDialogShown != curr.isDialogShown ||
+              prev.isDialogShown != curr.isDialogShown ||
               prev.navigateToExhaleScreen != curr.navigateToExhaleScreen ||
               prev.improperBlow != curr.improperBlow,
           listener: (context, state) {
@@ -165,7 +167,7 @@ class _BluetoothInhaleView extends StatelessWidget {
             }
           },
           buildWhen: (prev, curr) =>
-          prev.startCounter != curr.startCounter ||
+              prev.startCounter != curr.startCounter ||
               prev.startCounterFinished != curr.startCounterFinished ||
               prev.isBluetoothConnected != curr.isBluetoothConnected ||
               prev.progress != curr.progress ||
@@ -181,7 +183,11 @@ class _BluetoothInhaleView extends StatelessWidget {
               canPop: false,
               onPopInvokedWithResult: (didPop, result) async {
                 if (!didPop) {
-                  await showCancelTestDialogBox(context, state.holdStarted&&state.inhaleFinished&&!state.holdFinished);
+                  await showCancelTestDialogBox(
+                      context,
+                      state.holdStarted &&
+                          state.inhaleFinished &&
+                          !state.holdFinished);
                 }
               },
               child: Scaffold(
@@ -190,7 +196,11 @@ class _BluetoothInhaleView extends StatelessWidget {
                   leading: IconButton(
                     icon: const Icon(Icons.close),
                     onPressed: () {
-                      showCancelTestDialogBox(context, state.holdStarted&&state.inhaleFinished&&!state.holdFinished);
+                      showCancelTestDialogBox(
+                          context,
+                          state.holdStarted &&
+                              state.inhaleFinished &&
+                              !state.holdFinished);
                     },
                   ),
                   backgroundColor: Colors.white,
@@ -205,5 +215,3 @@ class _BluetoothInhaleView extends StatelessWidget {
     );
   }
 }
-
-

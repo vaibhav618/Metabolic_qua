@@ -138,7 +138,8 @@ class BluetoothCalibrationCubit extends Cubit<BluetoothCalibrationState> {
 
     // ✅ inhale navigation
     if (normalized.contains("inhale") && !state.navigateToInhaleScreen) {
-      _log("INHALE received -> navigate");
+      _log(
+          "INHALE received -> hardware ready, waiting for video sequence to finish");
 
       _inhaleTimeoutTimer?.cancel();
       _audioHelper.stopAudio();
@@ -151,8 +152,9 @@ class BluetoothCalibrationCubit extends Cubit<BluetoothCalibrationState> {
           await BreathingConfigService.fetchBreathingSettings();
       if (_disposed) return;
 
+      // 🚨 MODIFIED: Do not navigate yet. Tell the UI the hardware is ready.
       emit(state.copyWith(
-        navigateToInhaleScreen: true,
+        calibrationHardwareReady: true,
         waitForInhaleCmd: false,
         showPleaseWaitMessage: false,
         breathingSettings: settings,
@@ -380,6 +382,14 @@ class BluetoothCalibrationCubit extends Cubit<BluetoothCalibrationState> {
     }
   }
 
+  // 🚨 NEW METHOD: Triggered by the UI Screen ONLY after cali3 finishes playing!
+  void triggerInhaleNavigation() {
+    if (_disposed) return;
+    _log(
+        "UI Video Sequence complete -> Triggering Navigation to Inhale Screen!");
+    emit(state.copyWith(navigateToInhaleScreen: true));
+  }
+
   void _cancelStreamsOnly() {
     _inhaleTimeoutTimer?.cancel();
     _stopHandshakeLoop();
@@ -415,6 +425,7 @@ class BluetoothCalibrationCubit extends Cubit<BluetoothCalibrationState> {
       remainingSeconds: _globalMaxSeconds,
       navigateToInhaleScreen: false,
       startCalibrationTime: false,
+      calibrationHardwareReady: false, // 🚨 Added here
     ));
   }
 

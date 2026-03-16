@@ -1,6 +1,6 @@
 name: respyr_dietitian
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.2+8
 
 environment:
@@ -49,10 +49,6 @@ dependencies:
   flutter_local_notifications: ^19.4.0
   app_settings: ^5.1.1
 
-
-
-
-
   # Media / Files
   image_picker: ^1.1.2
   image_cropper: ^9.1.0
@@ -97,7 +93,6 @@ dev_dependencies:
   mocktail: ^1.0.4
   flutter_launcher_icons: ^0.13.1
 
-
 dependency_overrides:
   web: 0.3.0
 
@@ -109,6 +104,7 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
+    - assets/images/calibration/
     - assets/images/common/
     - assets/images/device_connection/
     - assets/images/result_screen/

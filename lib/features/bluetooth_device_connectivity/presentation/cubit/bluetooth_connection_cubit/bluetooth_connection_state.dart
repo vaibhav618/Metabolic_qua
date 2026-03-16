@@ -52,13 +52,10 @@ class BluetoothConnectionState extends Equatable {
     bool? isConnected,
     bool? isConnecting,
     String? lastData,
-
     String? textError,
     bool clearTextError = false,
-
     String? connectingDeviceId,
     bool clearConnectingDeviceId = false,
-
     bool? deviceReady,
     bool? isDeviceError,
     bool? deviceIsInhaleOrExhaleMode,
@@ -82,7 +79,7 @@ class BluetoothConnectionState extends Equatable {
       deviceReady: deviceReady ?? this.deviceReady,
       isDeviceError: isDeviceError ?? this.isDeviceError,
       deviceIsInhaleOrExhaleMode:
-      deviceIsInhaleOrExhaleMode ?? this.deviceIsInhaleOrExhaleMode,
+          deviceIsInhaleOrExhaleMode ?? this.deviceIsInhaleOrExhaleMode,
 
       // ✅ NEW
       isReconnecting: isReconnecting ?? this.isReconnecting,
@@ -92,20 +89,20 @@ class BluetoothConnectionState extends Equatable {
 
   @override
   List<Object?> get props => [
-    status,
-    devices,
-    isScanning,
-    isConnected,
-    isConnecting,
-    lastData,
-    textError,
-    connectingDeviceId,
-    deviceReady,
-    isDeviceError,
-    deviceIsInhaleOrExhaleMode,
+        status,
+        devices,
+        isScanning,
+        isConnected,
+        isConnecting,
+        lastData,
+        textError,
+        connectingDeviceId,
+        deviceReady,
+        isDeviceError,
+        deviceIsInhaleOrExhaleMode,
 
-    // ✅ NEW
-    isReconnecting,
-    linkMessage,
-  ];
+        // ✅ NEW
+        isReconnecting,
+        linkMessage,
+      ];
 }
