@@ -16,7 +16,6 @@ import '../../domain/processor/bluetooth_blow_processor.dart';
 import '../cubit/bluetooth_exhale_cubit_new/bluetooth_exhale_cubit.dart';
 import '../cubit/bluetooth_exhale_cubit_new/bluetooth_exhale_state.dart';
 import '../widgets/exhale_failed.dart';
-import '../widgets/exhale_screen_app_bar.dart';
 import '../widgets/new_exhale_screen_2.dart';
 
 class BluetoothNewExhaleScreen extends StatelessWidget {
@@ -122,8 +121,30 @@ class _BluetoothNewExhaleScreenViewState
     }
   }
 
+  // 🚨 ADDED: The exact AppBar from the Inhale Screen for pixel-perfect alignment
+  PreferredSizeWidget _buildAppBar({
+    required BuildContext context,
+    required VoidCallback onBackClicked,
+  }) {
+    return AppBar(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      automaticallyImplyLeading: false,
+      actions: [
+        IconButton(
+          onPressed: onBackClicked,
+          icon: const Icon(Icons.close),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // 🚨 ADDED: Nav-bar detection logic synced exactly with Inhale Screen
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final hasNavBar = bottomPadding > 35.0;
+
     return BlocListener<BluetoothExhaleCubit, BluetoothExhaleState>(
       listenWhen: (prev, curr) =>
           prev.isConnected != curr.isConnected ||
@@ -196,13 +217,14 @@ class _BluetoothNewExhaleScreenViewState
               },
               child: Scaffold(
                 backgroundColor: Colors.white,
-                appBar: ExhaleScreenAppBar(
+                // 🚨 UPDATED: Using synced AppBar
+                appBar: _buildAppBar(
                   context: context,
-                  cancelTestClicked: () {
-                    _onCancel(context, state);
-                  },
+                  onBackClicked: () => _onCancel(context, state),
                 ),
+                // 🚨 UPDATED: Using synced SafeArea
                 body: SafeArea(
+                  bottom: hasNavBar,
                   child: ExhaleFailed(
                     state: state,
                     onStartAgain: () async {
@@ -221,12 +243,14 @@ class _BluetoothNewExhaleScreenViewState
             },
             child: Scaffold(
               backgroundColor: Colors.white,
-              appBar: ExhaleScreenAppBar(
-                  context: context,
-                  cancelTestClicked: () {
-                    _onCancel(context, state);
-                  }),
+              // 🚨 UPDATED: Using synced AppBar
+              appBar: _buildAppBar(
+                context: context,
+                onBackClicked: () => _onCancel(context, state),
+              ),
+              // 🚨 UPDATED: Using synced SafeArea
               body: SafeArea(
+                bottom: hasNavBar,
                 child: NewExhaleScreen2(
                   state: state,
                   breathingSettings: widget.breathingSettings,

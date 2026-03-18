@@ -17,26 +17,70 @@ class NewExhaleScreen2 extends StatefulWidget {
   State<NewExhaleScreen2> createState() => _NewExhaleScreen2State();
 }
 
-class _NewExhaleScreen2State extends State<NewExhaleScreen2> {
+class _NewExhaleScreen2State extends State<NewExhaleScreen2>
+    with SingleTickerProviderStateMixin {
   final ValueNotifier<double> _reading = ValueNotifier<double>(0);
+
+  bool _isInitialFrame = true;
+
+  // 🚨 UPDATED: Only animating the progress ball now to keep range lines fixed
+  late AnimationController _transitionController;
+  late Animation<double> _progressAnim;
+
+  bool _isAnimatingGraph = true;
 
   @override
   void initState() {
     super.initState();
-    _reading.value = widget.state.progress;
+
+    // Start the graph at the fully shrunken state
+    double startingInhaleProgress = 1.0;
+    _reading.value = startingInhaleProgress;
+
+    _transitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2), // Speed of the ball expansion
+    );
+
+    // Animate only the ball/progress
+    _progressAnim =
+        Tween<double>(begin: startingInhaleProgress, end: widget.state.progress)
+            .animate(CurvedAnimation(
+                parent: _transitionController, curve: Curves.easeOutCubic));
+
+    _transitionController.addListener(() {
+      _reading.value = _progressAnim.value;
+    });
+
+    _transitionController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _isAnimatingGraph = false;
+      }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _isInitialFrame = false;
+        });
+        _transitionController.forward();
+      }
+    });
   }
 
   @override
   void didUpdateWidget(covariant NewExhaleScreen2 oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.state.progress != widget.state.progress) {
+    if (!_isAnimatingGraph &&
+        oldWidget.state.progress != widget.state.progress) {
       _reading.value = widget.state.progress;
     }
   }
 
   @override
   void dispose() {
+    _transitionController.dispose();
     _reading.dispose();
     super.dispose();
   }
@@ -81,6 +125,7 @@ class _NewExhaleScreen2State extends State<NewExhaleScreen2> {
 
               return Center(
                 child: RepaintBoundary(
+                  // 🚨 FIXED: Removed AnimatedBuilder for bands so they stay static
                   child: BreathingTargetGraph(
                     reading: _reading,
                     height: safeH,
@@ -88,7 +133,8 @@ class _NewExhaleScreen2State extends State<NewExhaleScreen2> {
                         widget.breathingSettings.exhale.minBand.toDouble(),
                     targetMax:
                         widget.breathingSettings.exhale.maxBand.toDouble(),
-                    hold: false,
+                    // Keep hold true for the initial frame to match the visual state of the previous screen
+                    hold: _isInitialFrame ? true : false,
                     holdCounter: 0,
                   ),
                 ),
@@ -110,27 +156,45 @@ class _NewExhaleScreen2State extends State<NewExhaleScreen2> {
       letterSpacing: -1,
     );
 
-    if (!state.exhaleStarted) {
-      return Text(
-        "Exhale to move\nthe ball into range",
+    Widget textWidget;
+
+    if (_isInitialFrame) {
+      textWidget = Text(
+        "Start exhaling in..",
+        key: const ValueKey("imposter_text"),
         textAlign: TextAlign.center,
         style: baseStyle,
       );
+    } else if (!state.exhaleStarted) {
+      textWidget = Text(
+        "Exhale to move\nthe ball into range",
+        key: const ValueKey("exhale_start_text"),
+        textAlign: TextAlign.center,
+        style: baseStyle,
+      );
+    } else {
+      textWidget = RichText(
+        key: const ValueKey("exhale_holding_text"),
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: baseStyle,
+          children: [
+            const TextSpan(text: "Keep the ball in\nrange for "),
+            TextSpan(
+              text: "${state.holdSecondsLeft}",
+              style: const TextStyle(color: Color(0xFF308BF9)),
+            ),
+            const TextSpan(text: " seconds"),
+          ],
+        ),
+      );
     }
 
-    return RichText(
-      textAlign: TextAlign.center,
-      text: TextSpan(
-        style: baseStyle,
-        children: [
-          const TextSpan(text: "Keep the ball in\nrange for "),
-          TextSpan(
-            text: "${state.holdSecondsLeft}",
-            style: const TextStyle(color: Color(0xFF308BF9)),
-          ),
-          const TextSpan(text: " seconds"),
-        ],
-      ),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: textWidget,
     );
   }
 }

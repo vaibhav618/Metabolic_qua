@@ -422,11 +422,11 @@ final GoRouter appRouter = GoRouter(
           params = extra;
         } else {
           final m = _asMap(extra);
-          if (m == null)
+          if (m == null) {
             return NoTransitionPage(
                 child:
                     _errorScreen('Missing or invalid navigation parameters.'));
-
+          }
           try {
             final client = m['clientProfileModel'];
             final dietPlan = m['dietPlanStrategyModel'];
@@ -461,7 +461,9 @@ final GoRouter appRouter = GoRouter(
           }
         }
 
+        // 🚨 THE FIX: Use GoRouter's built-in NoTransitionPage
         return NoTransitionPage(
+          key: state.pageKey,
           child: BluetoothNewExhaleScreen(
             clientProfileModel: params.clientProfileModel,
             baseValue: params.baseValue,
