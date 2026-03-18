@@ -14,7 +14,6 @@ import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/rep
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/cubit/bluetooth_exhale_cubit.dart/bluetooth_exhale_cubit.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/cubit/bluetooth_exhale_cubit.dart/bluetooth_exhale_state.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/widgets/new_exhale_screen.dart';
-import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/widgets/old_exhale_screen.dart';
 import 'package:respyr_dietitian/routes/app_routes.dart';
 
 class BluetoothExhaleScreen extends StatelessWidget {
@@ -29,7 +28,8 @@ class BluetoothExhaleScreen extends StatelessWidget {
     required this.baseValue,
     required this.clientProfileModel,
     required this.dietPlanStrategyModel,
-    required this.minRange, required this.maxRange,
+    required this.minRange,
+    required this.maxRange,
   });
 
   Future<bool> showCancelTestDialogBox(BuildContext context) async {
@@ -38,7 +38,9 @@ class BluetoothExhaleScreen extends StatelessWidget {
       context.read<BluetoothExhaleCubit>().sendAbort();
       Future.microtask(() async {
         if (!context.read<BluetoothExhaleCubit>().isClosed) {
-          await context.read<BluetoothExhaleCubit>().setCancelOrDisconnectFlag();
+          await context
+              .read<BluetoothExhaleCubit>()
+              .setCancelOrDisconnectFlag();
         }
       });
       context.go(AppRoutes.clientDashboard, extra: clientProfileModel);
@@ -50,8 +52,6 @@ class BluetoothExhaleScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-
-
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -84,7 +84,7 @@ class BluetoothExhaleScreen extends StatelessWidget {
 
               final bestPR = processor.blowValuesList.isNotEmpty
                   ? processor.blowValuesList.reduce((a, b) => a + b) /
-                  processor.blowValuesList.length
+                      processor.blowValuesList.length
                   : 0.0;
 
               final duration = processor.blowDuration;
@@ -124,7 +124,9 @@ class BluetoothExhaleScreen extends StatelessWidget {
                   if (!context.read<BluetoothExhaleCubit>().isClosed) {
                     context.read<BluetoothExhaleCubit>().stop();
                     context.read<BluetoothExhaleCubit>().dialogDismissed();
-                    context.read<BluetoothExhaleCubit>().setCancelOrDisconnectFlag();
+                    context
+                        .read<BluetoothExhaleCubit>()
+                        .setCancelOrDisconnectFlag();
                   }
                 });
 
@@ -144,12 +146,13 @@ class BluetoothExhaleScreen extends StatelessWidget {
                 break;
 
               case ActiveDialog.timeout:
-
                 Future.microtask(() async {
                   if (!context.read<BluetoothExhaleCubit>().isClosed) {
                     context.read<BluetoothExhaleCubit>().stop();
                     context.read<BluetoothExhaleCubit>().dialogDismissed();
-                    context.read<BluetoothExhaleCubit>().setCancelOrDisconnectFlag();
+                    context
+                        .read<BluetoothExhaleCubit>()
+                        .setCancelOrDisconnectFlag();
                   }
                 });
 
@@ -173,7 +176,9 @@ class BluetoothExhaleScreen extends StatelessWidget {
                   if (!context.read<BluetoothExhaleCubit>().isClosed) {
                     context.read<BluetoothExhaleCubit>().abortBlow();
                     context.read<BluetoothExhaleCubit>().dialogDismissed();
-                    context.read<BluetoothExhaleCubit>().setCancelOrDisconnectFlag();
+                    context
+                        .read<BluetoothExhaleCubit>()
+                        .setCancelOrDisconnectFlag();
                   }
                 });
                 showImproperExhale(
@@ -218,11 +223,12 @@ class BluetoothExhaleScreen extends StatelessWidget {
                 backgroundColor: Colors.white,
                 surfaceTintColor: Colors.white,
               ),
-
               body: SafeArea(
-                child: NewExhaleScreen(state: state, onCloseButtonPressed: (){
-                  showCancelTestDialogBox(context);
-                }),
+                child: NewExhaleScreen(
+                    state: state,
+                    onCloseButtonPressed: () {
+                      showCancelTestDialogBox(context);
+                    }),
               ),
             );
           },

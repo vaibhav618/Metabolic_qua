@@ -17,7 +17,6 @@ import 'package:respyr_dietitian/routes/app_routes.dart';
 import '../../../../common/dialogs/improper_exhale_dialog.dart';
 import '../../domain/processor/bluetooth_blow_processor.dart';
 import '../widgets/device_inhale_screen.dart';
-import '../widgets/inhale_getting_started.dart';
 
 class BluetoothInhaleScreen extends StatelessWidget {
   final ClientProfileModel clientProfileModel;
@@ -74,12 +73,13 @@ class _BluetoothInhaleView extends StatelessWidget {
 
     showCancelTestDialog(context, () async {
       context.read<BluetoothInhaleCubit>().sendAbort();
-      if (hold)
+      if (hold) {
         await context.read<BluetoothInhaleCubit>().setCancelOrDisconnectFlag();
-      context.go(
-        AppRoutes.clientDashboard,
-        extra: clientProfileModel,
-      );
+        context.go(
+          AppRoutes.clientDashboard,
+          extra: clientProfileModel,
+        );
+      }
 
       context.read<BluetoothInhaleCubit>().dialogDismissed();
     });

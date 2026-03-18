@@ -84,6 +84,10 @@ class _InhaleViewScaffoldState extends State<_InhaleViewScaffold> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚨 Detect if the device is using a 3-button navigation bar vs gestures
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final hasNavBar = bottomPadding > 35.0;
+
     return BlocListener<BluetoothInhaleCubitNew, BluetoothInhaleCubitNewState>(
       listenWhen: (previous, current) =>
           previous.isConnected != current.isConnected ||
@@ -106,9 +110,9 @@ class _InhaleViewScaffoldState extends State<_InhaleViewScaffold> {
                 context: context,
                 onBackClicked: () => _onCancel(context: context, state: state),
               ),
-              // 🚨 Disabled bottom safe area so the seamless video touches the edge
-              body:
-                  SafeArea(bottom: false, child: _buildScreen(context, state)),
+              // 🚨 Dynamically uses Safe Area ONLY if a 3-button nav bar is present
+              body: SafeArea(
+                  bottom: hasNavBar, child: _buildScreen(context, state)),
             ),
           );
         },
@@ -343,12 +347,12 @@ class _SeamlessInhaleCountdownState extends State<_SeamlessInhaleCountdown> {
 
   @override
   void dispose() {
-    // 🚨 Only dispose if we created it locally (not handed off)
-    if (SharedVideoHandOff.controller == null) {
-      _c3.dispose();
-    } else {
-      SharedVideoHandOff.controller = null; // Clean up the handoff after use
-    }
+    // 🚨 ALWAYS explicitly dispose the controller to free up the Android MediaCodec
+    _c3.dispose();
+
+    // Clean up the handoff after use so it's ready for the next test
+    SharedVideoHandOff.controller = null;
+
     super.dispose();
   }
 

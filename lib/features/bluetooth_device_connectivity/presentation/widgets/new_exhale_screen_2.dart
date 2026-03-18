@@ -10,7 +10,8 @@ import 'breathing_graph.dart';
 class NewExhaleScreen2 extends StatefulWidget {
   final BluetoothExhaleState state;
   final BreathingSettings breathingSettings;
-  const NewExhaleScreen2({super.key, required this.state, required this.breathingSettings});
+  const NewExhaleScreen2(
+      {super.key, required this.state, required this.breathingSettings});
 
   @override
   State<NewExhaleScreen2> createState() => _NewExhaleScreen2State();
@@ -83,8 +84,10 @@ class _NewExhaleScreen2State extends State<NewExhaleScreen2> {
                   child: BreathingTargetGraph(
                     reading: _reading,
                     height: safeH,
-                    targetMin: widget.breathingSettings.exhale.minBand.toDouble(),
-                    targetMax: widget.breathingSettings.exhale.maxBand.toDouble(),
+                    targetMin:
+                        widget.breathingSettings.exhale.minBand.toDouble(),
+                    targetMax:
+                        widget.breathingSettings.exhale.maxBand.toDouble(),
                     hold: false,
                     holdCounter: 0,
                   ),

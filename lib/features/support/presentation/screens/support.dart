@@ -1,42 +1,100 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart'; // 🚨 REQUIRED FOR OPENING MAIL APP
+
+// 🚨 Your app's custom responsive size helper (adjust path if necessary)
+import '../../../../../core/size/get_height.dart';
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
 
   static const String supportEmail = "connect@respyr.in";
 
+  // 🚨 UPDATED: Forces external launch and catches errors if no email app exists
+  Future<void> _launchEmail(BuildContext context) async {
+    final Uri emailLaunchUri = Uri(
+      scheme: 'mailto',
+      path: supportEmail,
+    );
+
+    try {
+      bool launched = await launchUrl(
+        emailLaunchUri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("No email app found. Please copy the email address."),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Could not launch email app: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final poppins = GoogleFonts.poppins();
+    final s = rh(context: context, px: 1); // Responsive scale
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: const Color(0xFFF5F7FA), // Matched FAQ background
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: const Color(0xFFF6F6F8),
         surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back,
+              color: const Color(0xFF252525), size: 24 * s),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              Navigator.pop(context);
+            }
+          },
+        ),
         title: Text(
-          "Support",
-          style: poppins.copyWith(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: const Color(0xFF111827),
+          "Help Center", // Matches the FAQ screen app bar title
+          style: GoogleFonts.poppins(
+            color: const Color(0xFF252525),
+            fontSize: 15 * s,
+            fontWeight: FontWeight.w400,
+            letterSpacing: -0.3,
           ),
         ),
-        iconTheme: const IconThemeData(color: Color(0xFF111827)),
+        centerTitle: false,
+        titleSpacing: 0,
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.symmetric(horizontal: 14 * s, vertical: 2 * s),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // 🚨 ADDED: Large 34px header to match FAQ and General screens
+              Text(
+                "Support",
+                style: GoogleFonts.poppins(
+                  color: const Color(0xFF252525),
+                  fontSize: 34 * s,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: -2.04,
+                ),
+              ),
+              SizedBox(height: 28 * s),
+
+              // 🚨 PRESERVED: Header Card (Unchanged style)
               _HeaderCard(poppins: poppins),
               const SizedBox(height: 14),
 
-              // Contact card (display only)
+              // 🚨 PRESERVED: Contact card (Unchanged style)
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -66,41 +124,52 @@ class SupportScreen extends StatelessWidget {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEEF2FF),
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: const Icon(
-                            Icons.mail_outline_rounded,
-                            color: Color(0xFF4F46E5),
+                        // 🚨 WRAPPED IN GESTURE DETECTOR: Opens Mail App on tap
+                        GestureDetector(
+                          onTap: () => _launchEmail(
+                              context), // 🚨 Updated to pass context
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEF2FF),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.mail_outline_rounded,
+                              color: Color(0xFF4F46E5),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
+                        // 🚨 WRAPPED IN GESTURE DETECTOR: Opens Mail App on tap
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                "Email",
-                                style: poppins.copyWith(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF6B7280),
+                          child: GestureDetector(
+                            onTap: () => _launchEmail(
+                                context), // 🚨 Updated to pass context
+                            behavior: HitTestBehavior.opaque,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Email",
+                                  style: poppins.copyWith(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF6B7280),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                supportEmail,
-                                style: poppins.copyWith(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF111827),
+                                const SizedBox(height: 2),
+                                Text(
+                                  supportEmail,
+                                  style: poppins.copyWith(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF111827),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                         IconButton(
@@ -164,6 +233,7 @@ class SupportScreen extends StatelessWidget {
   }
 }
 
+// 🚨 PRESERVED: Header Card completely untouched to retain your exact design
 class _HeaderCard extends StatelessWidget {
   final TextStyle poppins;
   const _HeaderCard({required this.poppins});

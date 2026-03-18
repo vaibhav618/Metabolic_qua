@@ -143,6 +143,12 @@ class _BluetoothCalibrationScreenState
 
   @override
   Widget build(BuildContext context) {
+    // 🚨 MAGIC THRESHOLD LOGIC:
+    // Gesture pills (iOS/Android) are usually <= 34px.
+    // 3-button nav bars are typically >= 48px.
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final isThreeButtonNav = bottomPadding > 35.0;
+
     return BlocProvider(
       create: (ctx) => BluetoothCalibrationCubit(
         ctx.read<BluetoothRepository>(),
@@ -229,7 +235,8 @@ class _BluetoothCalibrationScreenState
                   ],
                 ),
                 body: SafeArea(
-                  bottom: false,
+                  // 🚨 Dynamically applies SafeArea ONLY for 3-button devices
+                  bottom: isThreeButtonNav,
                   child: _CalibrationVideoStack(state: state),
                 ),
               ),
@@ -489,9 +496,9 @@ class _CalibrationVideoStackState extends State<_CalibrationVideoStack> {
   @override
   Widget build(BuildContext context) {
     if (!_initialized) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF308BF9)),
-      );
+      // 🚨 REMOVED THE LOADING SPINNER
+      // Now returns an invisible shrink box for a seamless transition
+      return const SizedBox.shrink();
     }
 
     return Column(

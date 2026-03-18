@@ -7,7 +7,6 @@ import 'package:respyr_dietitian/client-dashboard/data/model/client_profile_mode
 import 'package:respyr_dietitian/client-dashboard/data/model/diet_plan_strategy_model.dart';
 import 'package:respyr_dietitian/common/widgets/audio_helper.dart';
 import 'package:respyr_dietitian/common/widgets/internet_connectivity_handler.dart';
-import 'package:respyr_dietitian/core/services/shared_prefs_profile_data.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/repository/bluetooth_repository.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/cubit/bluetooth_breathe_tube_cubit/bluetooth_breathe_tube_cubit.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/cubit/bluetooth_breathe_tube_cubit/bluetooth_breathe_tube_state.dart';
@@ -23,7 +22,12 @@ class BluetoothBreatheTube extends StatelessWidget {
   final DietPlanStrategyModel dietPlanStrategyModel;
   final double minRange;
   final double maxRange;
-  const BluetoothBreatheTube({super.key, required this.clientProfileModel, required this.dietPlanStrategyModel, required this.minRange, required this.maxRange});
+  const BluetoothBreatheTube(
+      {super.key,
+      required this.clientProfileModel,
+      required this.dietPlanStrategyModel,
+      required this.minRange,
+      required this.maxRange});
 
   Future<bool> _showCancelTestDialogBox(BuildContext context) async {
     bool didCancel = false;
@@ -40,11 +44,10 @@ class BluetoothBreatheTube extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create:
-          (ctx) => BluetoothBreatheTubeCubit(
-            ctx.read<BluetoothRepository>(),
-            AudioHelper(),
-          ),
+      create: (ctx) => BluetoothBreatheTubeCubit(
+        ctx.read<BluetoothRepository>(),
+        AudioHelper(),
+      ),
       child: BlocConsumer<BluetoothBreatheTubeCubit, BluetoothBreatheTubeState>(
         listener: (context, state) async {
           final cubit = context.read<BluetoothBreatheTubeCubit>();
@@ -66,15 +69,14 @@ class BluetoothBreatheTube extends StatelessWidget {
             context.push(
               AppRoutes.bluetoothCalibrationScreen,
               extra: {
-                "client" : clientProfileModel,
-                "strategy" : dietPlanStrategyModel,
-                "min_range" : minRange,
-                "max_range" : maxRange,
+                "client": clientProfileModel,
+                "strategy": dietPlanStrategyModel,
+                "min_range": minRange,
+                "max_range": maxRange,
               },
             );
           }
         },
-
         builder: (context, state) {
           return PopScope(
             canPop: false,
@@ -104,15 +106,16 @@ class BluetoothBreatheTube extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             IconButton(
-                              onPressed:
-                                  () => _showCancelTestDialogBox(context),
+                              onPressed: () =>
+                                  _showCancelTestDialogBox(context),
                               icon: SvgPicture.asset(
                                 "assets/images/common/closeicon.svg",
                               ),
                             ),
                             const Spacer(),
                             FutureBuilder<double>(
-                              future: DeviceBatteryManager.getBatteryPercentage(),
+                              future:
+                                  DeviceBatteryManager.getBatteryPercentage(),
                               builder: (context, snapshot) {
                                 if (!snapshot.hasData || snapshot.data! <= 0) {
                                   return const SizedBox.shrink();
@@ -137,10 +140,8 @@ class BluetoothBreatheTube extends StatelessWidget {
                                       .audioHelper
                                       .toggleMute();
                                 },
-                                icon: BlocBuilder<
-                                  BluetoothBreatheTubeCubit,
-                                  BluetoothBreatheTubeState
-                                >(
+                                icon: BlocBuilder<BluetoothBreatheTubeCubit,
+                                    BluetoothBreatheTubeState>(
                                   builder: (context, state) {
                                     return Icon(
                                       context
@@ -169,7 +170,7 @@ class BluetoothBreatheTube extends StatelessWidget {
                             ),
                           ),
                         ),
-                       // Image.asset("assets/images/gif_images/mouth_tube.gif"),
+                        // Image.asset("assets/images/gif_images/mouth_tube.gif"),
                         SizedBox(height: 50),
                         LinearProgressIndicator(
                           value: state.progress,

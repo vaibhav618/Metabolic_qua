@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:respyr_dietitian/features/dashboard/qua_dashboard/qua_profile/presentation/screens/qua_profile.dart';
+import 'package:respyr_dietitian/features/faq/presentation/faq_screen.dart';
 import 'package:respyr_dietitian/features/science/presentation/reference_screen.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../client-dashboard/data/model/client_profile_model.dart';
@@ -373,7 +374,7 @@ class DashboardMenuScreen extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 17 * s),
                 child: Text(
-                  "Support",
+                  "Help Center",
                   textAlign: TextAlign.left,
                   style: GoogleFonts.poppins(
                     color: const Color(0xFF252525),
@@ -427,6 +428,46 @@ class DashboardMenuScreen extends StatelessWidget {
                               children: [
                                 Text(
                                   "Support",
+                                  style: GoogleFonts.poppins(
+                                    color: const Color(0xFF252525),
+                                    fontSize: 15 * s,
+                                    fontWeight: FontWeight.w400,
+                                    height: 1.10,
+                                    letterSpacing: -0.30,
+                                  ),
+                                ),
+                                Icon(Icons.keyboard_arrow_right_outlined)
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 🚨 ADDED: FAQ Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const FaqScreen(),
+                              ),
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.symmetric(
+                              vertical: 10 * s,
+                              horizontal: 10 * s,
+                            ),
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "FAQ",
                                   style: GoogleFonts.poppins(
                                     color: const Color(0xFF252525),
                                     fontSize: 15 * s,

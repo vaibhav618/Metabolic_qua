@@ -8,7 +8,6 @@ import 'package:respyr_dietitian/client-dashboard/data/model/diet_plan_strategy_
 import 'package:respyr_dietitian/common/dialogs/disconnection_dialog.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/repository/bluetooth_repository.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/data/repository/generating_result_repository.dart';
-import 'package:respyr_dietitian/features/bluetooth_device_connectivity/domain/params/result_screen_params.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/cubit/bluetooth_generating_result_cubit/bluetooth_generating_result_cubit.dart';
 import 'package:respyr_dietitian/features/bluetooth_device_connectivity/presentation/cubit/bluetooth_generating_result_cubit/bluetooth_generating_result_state.dart';
 import 'package:respyr_dietitian/routes/app_routes.dart';
@@ -89,7 +88,8 @@ class _BluetoothGeneratingResultScreenState
     super.dispose();
   }
 
-  void _handleNavigationLogic(BuildContext context, BluetoothGeneratingResultState state) {
+  void _handleNavigationLogic(
+      BuildContext context, BluetoothGeneratingResultState state) {
     if (state.isTimedOut) return;
 
     if (state.isDialogShown && !_navigated) {
@@ -99,7 +99,8 @@ class _BluetoothGeneratingResultScreenState
         onButtonPressed: () {
           if (!mounted) return;
           _cubit.dialogDismissed();
-          context.go(AppRoutes.clientDashboard, extra: widget.clientProfileModel);
+          context.go(AppRoutes.clientDashboard,
+              extra: widget.clientProfileModel);
         },
       );
       return;
@@ -131,10 +132,11 @@ class _BluetoothGeneratingResultScreenState
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: _cubit,
-      child: BlocListener<BluetoothGeneratingResultCubit, BluetoothGeneratingResultState>(
+      child: BlocListener<BluetoothGeneratingResultCubit,
+          BluetoothGeneratingResultState>(
         // Only listen for navigation-related state changes
         listenWhen: (prev, next) =>
-        prev.isTimedOut != next.isTimedOut ||
+            prev.isTimedOut != next.isTimedOut ||
             prev.isDialogShown != next.isDialogShown ||
             prev.navigateToResultScreen != next.navigateToResultScreen,
         listener: _handleNavigationLogic,
@@ -218,16 +220,16 @@ class _TurningOffBar extends StatelessWidget {
         switchOutCurve: Curves.easeIn,
         child: isVisible
             ? Container(
-          key: const ValueKey('bar_on'),
-          decoration: const BoxDecoration(
-            color: Color(0xFFE1E6ED),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            "Turning off device...",
-            style: textStyle,
-          ),
-        )
+                key: const ValueKey('bar_on'),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE1E6ED),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  "Turning off device...",
+                  style: textStyle,
+                ),
+              )
             : const SizedBox(key: ValueKey('bar_off')),
       ),
     );
