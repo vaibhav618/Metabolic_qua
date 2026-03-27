@@ -347,11 +347,18 @@ class _SeamlessInhaleCountdownState extends State<_SeamlessInhaleCountdown> {
 
   @override
   void dispose() {
-    // 🚨 ALWAYS explicitly dispose the controller to free up the Android MediaCodec
-    _c3.dispose();
-
     // Clean up the handoff after use so it's ready for the next test
     SharedVideoHandOff.controller = null;
+
+    // 🚨 ANTI-STUTTER FIX: Save a reference to the video controller
+    final videoToKill = _c3;
+
+    // Delay the hardware cleanup by 500ms!
+    // This allows the route transition animation to finish beautifully
+    // before we block the main thread to destroy the media codec.
+    Future.delayed(const Duration(milliseconds: 500), () {
+      videoToKill.dispose();
+    });
 
     super.dispose();
   }

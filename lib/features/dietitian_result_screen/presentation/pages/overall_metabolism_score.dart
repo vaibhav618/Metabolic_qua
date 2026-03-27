@@ -25,9 +25,7 @@ class OverallMetabolismScore extends StatefulWidget {
 }
 
 class _OverallMetabolismScoreState extends State<OverallMetabolismScore> {
-
   String _formatDttm(String? dttm) {
-
     print(dttm);
     if (dttm == null || dttm.isEmpty) return '';
 
@@ -98,8 +96,10 @@ class _OverallMetabolismScoreState extends State<OverallMetabolismScore> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        RepaintBoundary(child: _buildHeaderSection(isSmallScreen)),
-                        RepaintBoundary(child: _buildMainContentSection(screenSize)),
+                        RepaintBoundary(
+                            child: _buildHeaderSection(isSmallScreen)),
+                        RepaintBoundary(
+                            child: _buildMainContentSection(screenSize)),
                       ],
                     ),
                   ),
@@ -122,8 +122,8 @@ class _OverallMetabolismScoreState extends State<OverallMetabolismScore> {
                       style: IconButton.styleFrom(
                         backgroundColor: const Color(0xFF308BF9),
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                          BorderRadius.circular(rh(context: context, px: 50)),
+                          borderRadius: BorderRadius.circular(
+                              rh(context: context, px: 50)),
                         ),
                         padding: EdgeInsets.all(rh(context: context, px: 16)),
                       ),
@@ -173,7 +173,9 @@ class _OverallMetabolismScoreState extends State<OverallMetabolismScore> {
                 ),
               ],
             ),
-            SizedBox(height: rh(context: context, px: 11),),
+            SizedBox(
+              height: rh(context: context, px: 11),
+            ),
             Flexible(
               child: Text(
                 _formatDttm(widget.result.dateTime.toString()),
@@ -208,10 +210,12 @@ class _OverallMetabolismScoreState extends State<OverallMetabolismScore> {
 
   Widget _buildMainContentSection(Size screenSize) {
     final bool isSmallScreen = screenSize.width < 360;
-    final double scoreFontSize =
-    isSmallScreen ? rh(context: context, px: 80.0) : rh(context: context, px: 100.0);
-    final double zoneFontSize =
-    isSmallScreen ? rh(context: context, px: 20.0) : rh(context: context, px: 25.0);
+    final double scoreFontSize = isSmallScreen
+        ? rh(context: context, px: 80.0)
+        : rh(context: context, px: 100.0);
+    final double zoneFontSize = isSmallScreen
+        ? rh(context: context, px: 20.0)
+        : rh(context: context, px: 25.0);
 
     final dailyFocusTitle = widget.result.respyrResponse.dayFocus?.title ?? "";
     final dailyFocusNote = widget.result.respyrResponse.dayFocus?.note ?? "";
@@ -389,8 +393,6 @@ class _OverallMetabolismScoreState extends State<OverallMetabolismScore> {
   }
 }
 
-
-
 class MetabolismScale extends StatelessWidget {
   final double value;
 
@@ -563,5 +565,3 @@ class MetabolismScale extends StatelessWidget {
     );
   }
 }
-
-

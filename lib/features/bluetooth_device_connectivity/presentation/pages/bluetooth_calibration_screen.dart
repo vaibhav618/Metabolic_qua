@@ -444,7 +444,7 @@ class _CalibrationVideoStackState extends State<_CalibrationVideoStack> {
   Widget _animText(String text) {
     return Text(
       text,
-      key: ValueKey(text),
+      // Removed ValueKey since we aren't using AnimatedSwitcher anymore
       textAlign: TextAlign.center,
       style: GoogleFonts.poppins(
         color: const Color(0xFF252525),
@@ -507,10 +507,8 @@ class _CalibrationVideoStackState extends State<_CalibrationVideoStack> {
         SizedBox(
           height: rh(context: context, px: 40),
           width: double.infinity,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 400),
-            child: _buildDynamicText(),
-          ),
+          // 🚨 REMOVED AnimatedSwitcher so the text just snaps instantly
+          child: _buildDynamicText(),
         ),
         // 🚨 UPDATED: Added stage condition so it fades out when Almost Ready begins
         AnimatedOpacity(

@@ -115,7 +115,7 @@ class _OverallScoreNewState extends State<OverallScoreNew> {
                   left: 0,
                   right: 0,
                   child: Visibility(
-                      visible: false,
+                      visible: true,
                       child: Center(
                         child: IconButton(
                           onPressed: () {
