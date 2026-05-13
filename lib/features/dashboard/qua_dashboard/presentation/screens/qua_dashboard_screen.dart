@@ -46,14 +46,15 @@ class _QuaDashboardScreenState extends State<QuaDashboardScreen> {
 
   void _fetchTarget(BuildContext context) {
     context.read<MetabolismTargetBloc>().add(
-      FetchMetabolismTarget(
-        age: int.tryParse(widget.clientProfileModel.age) ?? 0,
-        gender: widget.clientProfileModel.gender,
-        heightCm: double.tryParse(widget.clientProfileModel.height) ?? 0.0,
-        currentWeight: double.tryParse(widget.clientProfileModel.weight) ?? 0.0,
-        diabetic: false,
-      ),
-    );
+          FetchMetabolismTarget(
+            age: int.tryParse(widget.clientProfileModel.age) ?? 0,
+            gender: widget.clientProfileModel.gender,
+            heightCm: double.tryParse(widget.clientProfileModel.height) ?? 0.0,
+            currentWeight:
+                double.tryParse(widget.clientProfileModel.weight) ?? 0.0,
+            diabetic: false,
+          ),
+        );
   }
 
   @override
@@ -91,7 +92,8 @@ class _QuaDashboardScreenState extends State<QuaDashboardScreen> {
 
       await InAppUpdate.startFlexibleUpdate();
       await InAppUpdate.completeFlexibleUpdate();
-    } catch (_) {} finally {
+    } catch (_) {
+    } finally {
       if (mounted) setState(() => _updating = false);
     }
   }
@@ -122,9 +124,10 @@ class _QuaDashboardScreenState extends State<QuaDashboardScreen> {
               FetchMetabolismTarget(
                 age: int.tryParse(widget.clientProfileModel.age) ?? 0,
                 gender: widget.clientProfileModel.gender,
-                heightCm: double.tryParse(widget.clientProfileModel.height) ?? 0.0,
+                heightCm:
+                    double.tryParse(widget.clientProfileModel.height) ?? 0.0,
                 currentWeight:
-                double.tryParse(widget.clientProfileModel.weight) ?? 0.0,
+                    double.tryParse(widget.clientProfileModel.weight) ?? 0.0,
                 diabetic: false,
               ),
             );
@@ -170,10 +173,10 @@ class _QuaDashboardScreenState extends State<QuaDashboardScreen> {
               state: state,
               retryButtonClicked: () {
                 context.read<QuaDashboardBloc>().add(
-                  QuaRefreshClientAndDietitian(
-                    email: widget.clientProfileModel.email,
-                  ),
-                );
+                      QuaRefreshClientAndDietitian(
+                        email: widget.clientProfileModel.email,
+                      ),
+                    );
                 _fetchTarget(context);
               },
             );
@@ -183,11 +186,10 @@ class _QuaDashboardScreenState extends State<QuaDashboardScreen> {
             double minRange = 0.0;
             double maxRange = 0.0;
 
-            final targetState =
-                context.watch<MetabolismTargetBloc>().state;
+            final targetState = context.watch<MetabolismTargetBloc>().state;
             if (targetState is MetabolismTargetLoaded) {
-              final rangeStr = targetState.data.targetScores[
-              "target_fat_loss_metabolism_score %"] ??
+              final rangeStr = targetState.data
+                      .targetScores["target_fat_loss_metabolism_score %"] ??
                   "";
               final parsed = extractRange(rangeStr);
               if (parsed.length >= 2) {

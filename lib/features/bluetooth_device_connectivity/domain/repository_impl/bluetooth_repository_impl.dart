@@ -115,6 +115,10 @@ class BluetoothRepositoryImpl implements BluetoothRepository {
   @override
   Future<void> sendData(String data) => _ds.write(data);
 
+  // 🚨 ADDED: For raw binary firmware transmission
+  @override
+  Future<void> sendRawData(List<int> data) => _ds.writeRaw(data);
+
   @override
   Future<String?> getAlreadyConnectedDeviceId() async {
     final connectedDevices = await FlutterBluePlus.connectedDevices;

@@ -47,6 +47,12 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
 
   bool deviceIsExhaleOrInhaleModeCalled = false;
 
+  // 🚨 NEW: Flags for the UUID & Version check sequence
+  bool _initialChecksInProgress = false;
+  bool _initialChecksCompleted = false;
+  String _deviceVersion = "";
+  final String _requiredVersion = "v1.2.0"; // The version we want them to have
+
   final _frameBuffer = _BleFrameBuffer();
   final Map<String, _SeenDevice> _seen = {};
 
@@ -84,6 +90,8 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       _wasEverConnected = true;
       _handshakeCompleted = false;
       _handshakeInProgress = false;
+      _initialChecksCompleted = false;
+      _initialChecksInProgress = false;
       _frameBuffer.clear();
       deviceIsExhaleOrInhaleModeCalled = false;
       _connectAttemptActive = false;
@@ -97,38 +105,10 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
         clearTextError: true,
         deviceIsInhaleOrExhaleMode: false,
         deviceReady: false,
+        firmwareUpdateRequired: false,
       ));
 
-      try {
-        //  await repo.prepareForNewSession();
-      } catch (e) {}
-
-      if (repo.isConnected) {
-        // Already connected, so proceed to the next process immediately
-        _wasEverConnected = true;
-        _handshakeCompleted = false;
-        _handshakeInProgress = false;
-        _frameBuffer.clear();
-        deviceIsExhaleOrInhaleModeCalled = false;
-        _connectAttemptActive = false;
-        _connectGraceTimer?.cancel();
-
-        safeEmit(state.copyWith(
-          isConnected: true,
-          isConnecting: false,
-          status: BluetoothConnectionStatus.connected,
-          isScanning: false,
-          clearTextError: true,
-          deviceIsInhaleOrExhaleMode: false,
-          deviceReady: false,
-        ));
-
-        _checkAppReadiness();
-      }
-      // if (repo.isReady) {
-      //   await _checkAppReadiness();
-      // } else {
-      // }
+      _performInitialChecks(); // 🚨 Start UUID/Version check
       return;
     }
 
@@ -143,6 +123,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       clearTextError: true,
       clearConnectingDeviceId: true,
       deviceIsInhaleOrExhaleMode: false,
+      firmwareUpdateRequired: false,
     ));
 
     _scanRequested = true;
@@ -174,6 +155,8 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     _wasEverConnected = false;
     _handshakeCompleted = false;
     _handshakeInProgress = false;
+    _initialChecksCompleted = false;
+    _initialChecksInProgress = false;
     _initCalled = false;
     _scanRequested = false;
     _startingScan = false;
@@ -231,6 +214,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       clearConnectingDeviceId: true,
       deviceIsInhaleOrExhaleMode: false,
       lastData: "",
+      firmwareUpdateRequired: false,
     ));
   }
 
@@ -260,6 +244,8 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
 
     _handshakeCompleted = false;
     _handshakeInProgress = false;
+    _initialChecksCompleted = false;
+    _initialChecksInProgress = false;
     deviceIsExhaleOrInhaleModeCalled = false;
     _frameBuffer.clear();
     _seen.clear();
@@ -281,6 +267,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       isDeviceError: false,
       clearConnectingDeviceId: true,
       deviceIsInhaleOrExhaleMode: false,
+      firmwareUpdateRequired: false,
     ));
   }
 
@@ -298,6 +285,8 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
         _wasEverConnected = true;
         _handshakeCompleted = false;
         _handshakeInProgress = false;
+        _initialChecksCompleted = false;
+        _initialChecksInProgress = false;
         deviceIsExhaleOrInhaleModeCalled = false;
         _frameBuffer.clear();
         _connectAttemptActive = false;
@@ -310,8 +299,11 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
           clearTextError: true,
           deviceIsInhaleOrExhaleMode: false,
           deviceReady: false,
+          firmwareUpdateRequired: false,
         ));
 
+        // 🚨 Start UUID & Version check immediately upon connection
+        _performInitialChecks();
         return;
       }
 
@@ -327,6 +319,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
         status: BluetoothConnectionStatus.disconnected,
         clearConnectingDeviceId: true,
         deviceIsInhaleOrExhaleMode: false,
+        firmwareUpdateRequired: false,
       ));
 
       _scanRequested = true;
@@ -352,7 +345,10 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       if (!state.isConnected) return;
       if (!isGattReady) return;
 
-      await _checkAppReadiness();
+      // 🚨 Only do app readiness (sending '{') IF the version check passed
+      if (_initialChecksCompleted && !state.firmwareUpdateRequired) {
+        await _checkAppReadiness();
+      }
     }, onError: (e) {
       _log("READY_STREAM ERROR => $e");
     });
@@ -369,12 +365,80 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
 
       _log("DATA_STREAM => '$cleaned'");
 
+      // 🚨 INTERCEPT RESPONSES DURING INITIAL CHECKS
+      if (_initialChecksInProgress) {
+        // Extract version string (e.g. v1.2.0 or 1.2.0)
+        final versionMatch = RegExp(r'v?\d+\.\d+\.\d+').firstMatch(cleaned);
+
+        if (versionMatch != null) {
+          _deviceVersion = versionMatch.group(0)!;
+          _processVersionResult();
+          return; // Stop processing this packet
+        }
+
+        // Log other responses (like UUID) but do not process them as normal data yet
+        _log("Pre-handshake data intercepted (UUID/Status): $cleaned");
+        return;
+      }
+
       onBleData(cleaned);
       safeEmit(state.copyWith(lastData: cleaned));
     }, onError: (e) {
       _log("DATA_STREAM ERROR => $e");
     });
   }
+
+  // -------------------------------------------------------------------
+  // 🚨 NEW: The UUID & Version Check Logic
+  // -------------------------------------------------------------------
+  Future<void> _performInitialChecks() async {
+    if (!state.isConnected) return;
+    if (_initialChecksInProgress || _initialChecksCompleted) return;
+
+    _initialChecksInProgress = true;
+    _log("Starting Initial Checks (! and \") before Handshake...");
+
+    try {
+      // 1. Ask for UUID
+      await repo.sendData('!');
+
+      // Delay slightly to prevent BLE buffer collisions
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      // 2. Ask for Firmware Version
+      await repo.sendData('"');
+    } catch (e) {
+      _log("Failed to send initial check commands: $e");
+    }
+
+    // Wait up to 4 seconds for the device to respond with its version
+    Timer(const Duration(seconds: 4), () {
+      if (_initialChecksInProgress) {
+        _log("Version check timed out. Device likely does not support OTA.");
+        _deviceVersion = "unknown";
+        _processVersionResult();
+      }
+    });
+  }
+
+  void _processVersionResult() {
+    _initialChecksInProgress = false;
+    _initialChecksCompleted = true;
+
+    _log(
+        "Initial Checks Result: Device is on $_deviceVersion. Required: $_requiredVersion");
+
+    if (_deviceVersion != _requiredVersion && _deviceVersion != "unknown") {
+      // 🚨 HALT: Device needs an update. DO NOT send '{'.
+      _log("Update Required. Halting handshake to prevent LED lock.");
+      safeEmit(state.copyWith(firmwareUpdateRequired: true));
+    } else {
+      // 🚨 PASS: Device is up to date (or doesn't support OTA). Proceed normally.
+      _log("Version OK (or unknown). Proceeding to Handshake ('{').");
+      _checkAppReadiness();
+    }
+  }
+  // -------------------------------------------------------------------
 
   Future<void> _startScanFlow({
     Duration timeout = const Duration(seconds: 15),
@@ -412,7 +476,8 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
     );
 
     if (!state.isConnected) return;
-    // if (!repo.isReady) return;
+    // 🚨 Extra guard: Don't handshake if we need an update
+    if (state.firmwareUpdateRequired) return;
     if (_handshakeCompleted) return;
     if (_handshakeInProgress) return;
 
@@ -634,6 +699,8 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
 
     _handshakeCompleted = false;
     _handshakeInProgress = false;
+    _initialChecksCompleted = false;
+    _initialChecksInProgress = false;
     deviceIsExhaleOrInhaleModeCalled = false;
     _frameBuffer.clear();
 
@@ -645,6 +712,7 @@ class BluetoothConnectionCubit extends Cubit<BluetoothConnectionState> {
       deviceReady: false,
       isDeviceError: false,
       clearTextError: true,
+      firmwareUpdateRequired: false,
     ));
 
     try {

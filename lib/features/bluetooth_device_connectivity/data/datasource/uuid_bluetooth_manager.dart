@@ -12,6 +12,9 @@ class UuidBluetoothManager {
       UuidBluetoothManager._internal();
   factory UuidBluetoothManager() => _instance;
 
+  // 🚨 Kill switch to block normal background Cubits during OTA
+  static bool isOtaModeActive = false;
+
   UuidBluetoothManager._internal() {
     _adapterStateSub = FlutterBluePlus.adapterState.listen((state) {
       if (state == BluetoothAdapterState.off ||
@@ -29,7 +32,9 @@ class UuidBluetoothManager {
   final _dataCtrl = StreamController<String>.broadcast();
   final _readyCtrl = StreamController<bool>.broadcast();
 
-  // ✅ NEW: link status stream (UI uses this)
+  final _rawDataCtrl = StreamController<List<int>>.broadcast();
+  Stream<List<int>> get rawDataStream => _rawDataCtrl.stream;
+
   final _linkCtrl = StreamController<BleLinkStatus>.broadcast();
   Stream<BleLinkStatus> get linkStatusStream => _linkCtrl.stream;
 
@@ -43,21 +48,16 @@ class UuidBluetoothManager {
   DateTime? _lastScanResultAt;
 
   bool _isConnected = false;
-
-  // ✅ guards
   bool _connecting = false;
   bool _reconnecting = false;
   String? _lastDeviceId;
   DateTime _lastDisconnectAt = DateTime.fromMillisecondsSinceEpoch(0);
 
-  // ✅ optional health logging
   Timer? _rssiTimer;
-
-  // ✅ allow auto reconnect
   bool autoReconnectEnabled = true;
 
-  // 🚨 EXPOSED DEVICE GETTER (Needed for Repository)
   BluetoothDevice? get device => _device;
+  BluetoothCharacteristic? get notifyChar => _notifyChar;
 
   final Guid serviceUuid = Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
   final Guid readCharacteristicUuid =
@@ -71,10 +71,7 @@ class UuidBluetoothManager {
   Stream<bool> get deviceReadyStream => _readyCtrl.stream;
 
   void _log(String msg) {
-    if (kDebugMode) {
-      // ignore: avoid_print
-      print("🟩 BLE_MGR | $msg");
-    }
+    if (kDebugMode) print("🟩 BLE_MGR | $msg");
   }
 
   void _emitLink(BleLinkStatus s) {
@@ -87,11 +84,10 @@ class UuidBluetoothManager {
     if (!_connCtrl.isClosed) _connCtrl.add(false);
     if (!_readyCtrl.isClosed) _readyCtrl.add(false);
 
-    _emitLink(BleLinkStatus.disconnected); // ✅ NEW
+    _emitLink(BleLinkStatus.disconnected);
     _teardown();
   }
 
-  /// ✅ Optional helper (you already call this from cubit)
   Future<void> clearAllConnections() async {
     autoReconnectEnabled = false;
     try {
@@ -103,13 +99,11 @@ class UuidBluetoothManager {
     autoReconnectEnabled = true;
   }
 
-  // ✅ Scan with self-healing loop
   Future<void> startScan({
     void Function(List<ScanResult>)? onResults,
   }) async {
     _stopScanRequested = false;
-    autoReconnectEnabled =
-        true; // 🚨 Re-enable auto-reconnect if we are actively scanning again
+    autoReconnectEnabled = true;
 
     final s = await FlutterBluePlus.adapterState.first;
     if (s != BluetoothAdapterState.on) {
@@ -235,14 +229,12 @@ class UuidBluetoothManager {
       return;
     }
     _connecting = true;
-    autoReconnectEnabled =
-        true; // 🚨 A deliberate connect call means we want auto-reconnect on.
+    autoReconnectEnabled = true;
 
-    _emitLink(BleLinkStatus.connecting); // ✅ NEW
+    _emitLink(BleLinkStatus.connecting);
     _log("connect(${device.remoteId.str})");
     await stopScan();
 
-    // disconnect previous
     if (_device != null && _device!.remoteId != device.remoteId) {
       try {
         _log("disconnect previous device...");
@@ -265,7 +257,7 @@ class UuidBluetoothManager {
       if (!_connCtrl.isClosed) _connCtrl.add(connected);
 
       if (connected) {
-        _emitLink(BleLinkStatus.connected); // ✅ NEW
+        _emitLink(BleLinkStatus.connected);
         try {
           if (Platform.isAndroid) {
             try {
@@ -275,6 +267,18 @@ class UuidBluetoothManager {
 
           await _discoverAndSubscribeWithRetry();
           if (!_readyCtrl.isClosed) _readyCtrl.add(true);
+
+          // -----------------------------------------------------------
+          // 🚨 THE GREEN LIGHT FIX 🚨
+          // Automatically send the version request the millisecond GATT is ready.
+          // This feeds your background BLE_CUBIT the version info it needs
+          // so it can halt the '{' handshake.
+          // -----------------------------------------------------------
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _log(
+                "Auto-requesting firmware version to prevent Green Light lock...");
+            write('"', maxRetries: 1);
+          });
 
           _startRssiLogging();
 
@@ -289,10 +293,9 @@ class UuidBluetoothManager {
           await _hardResetLink();
           _teardown();
 
-          _emitLink(BleLinkStatus.disconnected); // ✅ NEW
+          _emitLink(BleLinkStatus.disconnected);
 
           if (autoReconnectEnabled && _lastDeviceId != null) {
-            // ignore: unawaited_futures
             _autoReconnect(_lastDeviceId!);
           }
         }
@@ -304,16 +307,14 @@ class UuidBluetoothManager {
 
         final prevId = _lastDeviceId;
 
-        _emitLink(BleLinkStatus.disconnected); // ✅ NEW
+        _emitLink(BleLinkStatus.disconnected);
 
         await _hardResetLink();
         _teardown();
 
-        // 🚨 CRITICAL FIX: Only auto-reconnect if it wasn't an intentional disconnect
         if (autoReconnectEnabled && prevId != null) {
           _log(
               "Connection lost unexpectedly. Triggering auto-reconnect for $prevId");
-          // ignore: unawaited_futures
           _autoReconnect(prevId);
         } else {
           _log(
@@ -328,7 +329,7 @@ class UuidBluetoothManager {
       final msg = e.toString().toLowerCase();
       if (!msg.contains("already connected")) {
         _connecting = false;
-        _emitLink(BleLinkStatus.disconnected); // ✅ NEW
+        _emitLink(BleLinkStatus.disconnected);
         rethrow;
       }
     }
@@ -342,13 +343,12 @@ class UuidBluetoothManager {
     }
   }
 
-  // ✅ THIS is what makes reconnect “instant” in practice
   Future<void> _autoReconnect(String id) async {
     if (_reconnecting) return;
     if (_connecting) return;
 
     _reconnecting = true;
-    _emitLink(BleLinkStatus.reconnecting); // ✅ NEW
+    _emitLink(BleLinkStatus.reconnecting);
 
     try {
       final since = DateTime.now().difference(_lastDisconnectAt);
@@ -361,22 +361,19 @@ class UuidBluetoothManager {
           _log("autoReconnect attempt $attempt -> connectById($id)");
           await connectById(id);
           _log("autoReconnect success");
-          _emitLink(BleLinkStatus.connected); // ✅ NEW
+          _emitLink(BleLinkStatus.connected);
           return;
         } catch (e) {
           _log("autoReconnect failed attempt $attempt: $e");
           await Future.delayed(Duration(milliseconds: 450 * attempt));
         }
       }
-
-      // failed all attempts
-      _emitLink(BleLinkStatus.disconnected); // ✅ NEW
+      _emitLink(BleLinkStatus.disconnected);
     } finally {
       _reconnecting = false;
     }
   }
 
-  // ✅ After supervision timeout, do a stronger cleanup
   Future<void> _hardResetLink() async {
     final d = _device;
     if (d == null) return;
@@ -398,15 +395,10 @@ class UuidBluetoothManager {
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
-  // 🚨 CRITICAL FIX: The disconnect method now ensures auto-reconnect is dead
   Future<void> disconnect() async {
     _log("disconnect()");
-
-    // 🚨 We explicitly turn this off so the `device.connectionState.listen`
-    // block does not trigger `_autoReconnect()` when the OS fires the drop event.
     autoReconnectEnabled = false;
-
-    _emitLink(BleLinkStatus.disconnected); // ✅ NEW
+    _emitLink(BleLinkStatus.disconnected);
 
     try {
       await _device?.disconnect();
@@ -414,8 +406,6 @@ class UuidBluetoothManager {
       if (kDebugMode) print("⚠️ disconnect() threw: $e");
     } finally {
       _teardown();
-      // DO NOT reset autoReconnectEnabled back to true here!
-      // It must stay false until the user explicitly calls connect() or startScan() again.
     }
   }
 
@@ -471,8 +461,16 @@ class UuidBluetoothManager {
     } catch (_) {}
 
     _notifySub = _notifyChar!.onValueReceived.listen((value) {
-      if (value.isNotEmpty && !_dataCtrl.isClosed) {
-        _dataCtrl.add(String.fromCharCodes(value));
+      if (value.isNotEmpty) {
+        final rawBytes = List<int>.from(value);
+
+        if (!_rawDataCtrl.isClosed) {
+          _rawDataCtrl.add(rawBytes);
+        }
+
+        if (!_dataCtrl.isClosed) {
+          _dataCtrl.add(String.fromCharCodes(value));
+        }
       }
     }, onError: (e) {
       _log("notify stream error: $e");
@@ -480,6 +478,12 @@ class UuidBluetoothManager {
   }
 
   Future<void> write(String data, {int maxRetries = 3}) async {
+    // 🚨 Block normal test handshakes if we are doing an OTA update
+    if (isOtaModeActive && data == "{") {
+      _log("🚨 BLOCKED Normal Handshake '{'. OTA Mode is Active!");
+      return;
+    }
+
     if (_device == null || !_isConnected || _writeChar == null) return;
 
     final bytes = data.codeUnits;
@@ -492,6 +496,25 @@ class UuidBluetoothManager {
         return;
       } catch (e) {
         if (i == maxRetries) rethrow;
+        await Future.delayed(Duration(milliseconds: 120 * i));
+      }
+    }
+  }
+
+  Future<void> writeRaw(List<int> data, {int maxRetries = 3}) async {
+    if (_device == null || !_isConnected || _writeChar == null) return;
+
+    const bool withoutResponse = false;
+
+    for (int i = 1; i <= maxRetries; i++) {
+      try {
+        await _writeChar!.write(data, withoutResponse: withoutResponse);
+        return;
+      } catch (e) {
+        if (i == maxRetries) {
+          _log("Raw write error: $e");
+          rethrow;
+        }
         await Future.delayed(Duration(milliseconds: 120 * i));
       }
     }
@@ -559,9 +582,8 @@ class UuidBluetoothManager {
     if (!_connCtrl.isClosed) await _connCtrl.close();
     if (!_dataCtrl.isClosed) await _dataCtrl.close();
     if (!_readyCtrl.isClosed) await _readyCtrl.close();
-
-    // ✅ NEW
     if (!_linkCtrl.isClosed) await _linkCtrl.close();
+    if (!_rawDataCtrl.isClosed) await _rawDataCtrl.close();
   }
 
   Future<bool> getCurrentConnectionState() async {
@@ -577,7 +599,6 @@ class UuidBluetoothManager {
       _readyCtrl.add(connected && _notifyChar != null && _writeChar != null);
     }
 
-    // ✅ NEW
     _emitLink(connected ? BleLinkStatus.connected : BleLinkStatus.disconnected);
 
     return connected;

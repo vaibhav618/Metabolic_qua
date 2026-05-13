@@ -69,6 +69,10 @@ import 'package:respyr_dietitian/features/test_result/test_history/presentation/
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/presentation/data/practice_test_exhale_params.dart';
 import 'package:respyr_dietitian/features/practice_test/practice_test_exhale/presentation/screens/practice_test_exhale_screen.dart';
 
+// ✅ NEW: Firmware Update Imports
+import 'package:respyr_dietitian/features/firmware_update/presentation/cubit/device_update_cubit.dart';
+import 'package:respyr_dietitian/features/firmware_update/presentation/screens/firmware_update_screen.dart';
+
 import 'package:respyr_dietitian/routes/app_routes.dart';
 
 import '../common/screens/error_screen.dart';
@@ -734,6 +738,18 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.whoIsUsing,
       builder: (context, state) => const WhoIsUsingScreen(),
+    ),
+    // 🚨 NEW: Firmware Update Route
+    GoRoute(
+      path: AppRoutes.firmwareUpdateScreen,
+      builder: (context, state) {
+        return BlocProvider(
+          create: (context) => DeviceUpdateCubit(
+            repo: context.read<BluetoothRepository>(),
+          ),
+          child: const FirmwareUpdateScreen(),
+        );
+      },
     ),
   ],
 );

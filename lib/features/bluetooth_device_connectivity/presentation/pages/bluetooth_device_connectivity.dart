@@ -191,6 +191,28 @@ class __BluetoothDeviceConnectivityViewState
                 ),
               ),
             ),
+            floatingActionButton:
+                BlocBuilder<BluetoothConnectionCubit, BluetoothConnectionState>(
+              builder: (context, state) {
+                if (state.isConnected) {
+                  return FloatingActionButton.extended(
+                    onPressed: () {
+                      context.push(AppRoutes.firmwareUpdateScreen);
+                    },
+                    backgroundColor: Colors.orange,
+                    icon: const Icon(Icons.system_update, color: Colors.white),
+                    label: const Text(
+                      "Test OTA",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
             bottomNavigationBar: _bottomButton(),
           );
         },

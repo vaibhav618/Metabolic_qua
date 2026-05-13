@@ -27,6 +27,9 @@ class BluetoothConnectionState extends Equatable {
   final bool isReconnecting;
   final String? linkMessage;
 
+  // 🚨 NEW (for OTA Firmware Update UI)
+  final bool firmwareUpdateRequired;
+
   const BluetoothConnectionState({
     this.status = BluetoothConnectionStatus.initial,
     this.devices = const [],
@@ -43,6 +46,9 @@ class BluetoothConnectionState extends Equatable {
     // ✅ NEW
     this.isReconnecting = false,
     this.linkMessage,
+
+    // 🚨 NEW
+    this.firmwareUpdateRequired = false,
   });
 
   BluetoothConnectionState copyWith({
@@ -64,6 +70,9 @@ class BluetoothConnectionState extends Equatable {
     bool? isReconnecting,
     String? linkMessage,
     bool clearLinkMessage = false,
+
+    // 🚨 NEW
+    bool? firmwareUpdateRequired,
   }) {
     return BluetoothConnectionState(
       status: status ?? this.status,
@@ -84,6 +93,10 @@ class BluetoothConnectionState extends Equatable {
       // ✅ NEW
       isReconnecting: isReconnecting ?? this.isReconnecting,
       linkMessage: clearLinkMessage ? null : (linkMessage ?? this.linkMessage),
+
+      // 🚨 NEW
+      firmwareUpdateRequired:
+          firmwareUpdateRequired ?? this.firmwareUpdateRequired,
     );
   }
 
@@ -104,5 +117,8 @@ class BluetoothConnectionState extends Equatable {
         // ✅ NEW
         isReconnecting,
         linkMessage,
+
+        // 🚨 NEW
+        firmwareUpdateRequired,
       ];
 }

@@ -82,8 +82,8 @@ dependencies:
   pinput: ^5.0.1
   in_app_update: ^4.2.5
   new_version_plus: ^1.0.1
-
   sqflite: ^2.3.3
+  archive: ^4.0.9
 
 dev_dependencies:
   flutter_test:
@@ -112,3 +112,4 @@ flutter:
     - assets/images/result_history/
     - assets/images/gif_images/
     - assets/images/walk_through/
+    - assets/firmware/

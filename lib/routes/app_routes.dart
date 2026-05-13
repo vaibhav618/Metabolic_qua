@@ -63,4 +63,7 @@ abstract class AppRoutes {
   // select clients
   static const selectClient = '/select-clients';
   static const whoIsUsing = '/who-is-using';
+
+  // firmware update
+  static const firmwareUpdateScreen = '/firmware-update-screen';
 }

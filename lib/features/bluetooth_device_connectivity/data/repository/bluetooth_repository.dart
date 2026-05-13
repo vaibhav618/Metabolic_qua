@@ -17,6 +17,9 @@ abstract class BluetoothRepository {
 
   Future<void> sendData(String data);
 
+  // 🚨 NEW: Added for OTA binary firmware transmission
+  Future<void> sendRawData(List<int> data);
+
   // ✅ NEW: must be called before scanning (Android permissions + iOS readiness)
   Future<void> ensureScanPrerequisites();
 }
